@@ -8,5 +8,5 @@ Correspondence to: daniel.bartolot@oeaw.ac.at, felix.wagner@oeaw.ac.at
 
 
 # Usefull Resources
-[Stock-Trading-Environment](https://github.com/notadamking/Stock-Trading-Environment)
+[Stock-Trading-Environment](https://github.com/notadamking/Stock-Trading-Environment)<br>
 [Animated Matplotlib Graphs](https://ndres.me/post/matplotlib-animated-gifs-easily/)
