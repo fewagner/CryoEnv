@@ -1,7 +1,9 @@
+
 import numpy as np
 import gym
 from gym import error, spaces, utils
 from gym.utils import seeding
+import numpy as np
 
 
 class CryoEnv(gym.Env):
@@ -23,6 +25,7 @@ class CryoEnv(gym.Env):
                  v=60,
                  g=0.001,
                  r=1,
+                 n=15,
                  ):
 
         # input handling
@@ -53,9 +56,26 @@ class CryoEnv(gym.Env):
         self.alpha = alpha
         self.beta = beta
         self.gamma = gamma
+        self.n = n
 
-    def sensor_model(self):
-        pass  # TODO
+        # sensor parameters
+        def check_sensor_pars(k, T0):
+            return self.sensor_model(0, k, T0) > 0.1 and \
+                   self.sensor_model(0, k, T0) < 0.5 and \
+                   self.sensor_model(1, k, T0) > 0.999
+
+        good_pars = False
+
+        while not good_pars:
+            k, T0 = np.random.uniform(low=5, high=50), np.random.uniform(low=0, high=1)
+            good_pars = check_sensor_pars(k, T0)
+
+        self.k = k
+        self.t0 = T0
+
+
+    def sensor_model(self, T, k, T0):
+        return 1/(1 + np.exp(-k(T - T0)))
 
     def temperature_model(self):
         pass  # TODO
