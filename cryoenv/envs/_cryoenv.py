@@ -29,6 +29,7 @@ class CryoEnv(gym.Env):
                  n=15,
                  control_pulse_amplitude=10,
                  env_fluctuations=1,
+                 save_trajectory=False,
                  ):
 
         # input handling
@@ -93,10 +94,16 @@ class CryoEnv(gym.Env):
                 good_pars = check_sensor_pars(k[i], T0[i])
 
         self.k = k
-        self.t0 = T0
+        self.T0 = T0
 
         # initial state
         self.state = self.reset()
+
+        # render
+        self.save_trajectory = save_trajectory
+        self.actions_trajectory = []
+        self.new_states_trajectory = []
+        self.rewards_trajectory = []
 
     def sensor_model(self, T, k, T0):
         return 1 / (1 + np.exp(-k * (T - T0)))
@@ -108,13 +115,13 @@ class CryoEnv(gym.Env):
         return T.flatten()
 
     def environment_model(self, state):
-        return np.random.normal(mean=0, scale=self.env_fluctuations, size=1)
+        return np.random.normal(loc=0, scale=self.env_fluctuations, size=1)
 
     def reward(self, new_state, action):
 
         reward = 0
 
-        for (s, a) in zip(new_state.reshape(-1, self.nmbr_observations),
+        for (st, a) in zip(new_state.reshape(-1, self.nmbr_observations),
                           action.reshape(-1, self.nmbr_actions)):
 
             # unpack action
@@ -123,15 +130,21 @@ class CryoEnv(gym.Env):
             z = a[2]
 
             # unpack new state
-            V_set_new = s[0]
-            ph_new = s[1]
+            V_set_new = st[0]
+            ph_new = st[1]
 
             # check stability
-            if np.abs(ph_new - np.mean(self.last_phs)) < s * np.std(self.last_phs):
+            if len(self.last_phs) > 2:
+                # import ipdb
+                # ipdb.set_trace()
+                if np.abs(ph_new - np.mean(self.last_phs)) > self.s * np.std(self.last_phs):
+                    stable = False
+                else:
+                    stable = True
+                    self.last_phs.append(ph_new)
+            else:
                 stable = True
                 self.last_phs.append(ph_new)
-            else:
-                stable = False
 
             # reset case
             if z > 0.5:
@@ -140,7 +153,8 @@ class CryoEnv(gym.Env):
             # normal case
             else:
                 reward -= self.alpha / w / ph_new  # detector range maximization
-                reward -= self.beta / w * np.std(self.last_phs)  # detector sigma minimization
+                if len(self.last_phs) > 2:
+                    reward -= self.beta / w * np.std(self.last_phs)  # detector sigma minimization
                 reward -= self.gamma * (1 / w + self.r * dV)  # dead time due to sending of pulse and ramping
                 if not stable:
                     reward -= self.gamma  # penalty for instability
@@ -150,9 +164,9 @@ class CryoEnv(gym.Env):
     def step(self, action):
 
         # get the next state
-        new_state = np.empty(self.state.shape, dtype=self.state.dtype)
+        new_state = np.empty((self.nmbr_channels, 2), dtype=self.state.dtype)
 
-        for c, (s, a) in enumerate(
+        for c, (st, a) in enumerate(
                 zip(self.state.reshape(-1, self.nmbr_observations), action.reshape(-1, self.nmbr_actions))):
 
             # unpack action
@@ -161,8 +175,8 @@ class CryoEnv(gym.Env):
             z = a[2]
 
             # unpack state
-            V_set = s[0]
-            ph = s[1]
+            V_set = st[0]
+            ph = st[1]
 
             # reset case
             if z > 0.5:
@@ -195,13 +209,20 @@ class CryoEnv(gym.Env):
                     height_signal = self.sensor_model(T_inj, self.k[c], self.T0[c])
 
                     # difference is pulse height
-                    new_state[c, 1] = height_signal - height_baseline
+                    new_state[c, 1] = np.maximum(height_signal - height_baseline, self.g)
 
         # get the reward
         reward = self.reward(new_state, action)
 
         # update state
+        new_state = new_state.reshape(-1)
         self.state = new_state
+
+        # save trajectory
+        if self.save_trajectory:
+            self.actions_trajectory.append(action)
+            self.new_states_trajectory.append(new_state)
+            self.rewards_trajectory.append(reward)
 
         # the task is continuing
         done = False
@@ -214,6 +235,11 @@ class CryoEnv(gym.Env):
         self.state = np.array([[self.max_vset, self.g] * self.nmbr_channels]).reshape(-1)
         self.hysteresis[:] = False
         return self.state
+
+    def get_trajectory(self):
+        return np.array(self.actions_trajectory), \
+               np.array(self.new_states_trajectory), \
+               np.array(self.rewards_trajectory)
 
     def render(self, mode='human'):
         pass

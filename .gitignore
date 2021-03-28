@@ -140,3 +140,4 @@ cython_debug/
 # this project
 /venv/
 /info/
+/data/

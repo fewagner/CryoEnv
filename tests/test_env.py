@@ -1,13 +1,13 @@
-
 # imports
 import gym
+import matplotlib.pyplot as plt
 import numpy as np
 from stable_baselines3 import A2C
-from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.env_checker import check_env
+gym.logger.set_level(40)
 
 print('Create Environment.')
-env = gym.make('cryoenv:cryoenv-v0')
+env = gym.make('cryoenv:cryoenv-v0', save_trajectory=True)
 
 print('Check Environment.')
 check_env(env)
@@ -16,14 +16,15 @@ print('Create Model.')
 model = A2C("MlpPolicy", env, verbose=False)
 
 print('Learn.')
-model.learn(total_timesteps=10000)
+model.learn(total_timesteps=500)
 
-print('Training.')
-obs = env.reset()
-for i in range(10):
-    print('Step: ', i)
-    action, _states = model.predict(obs)
-    print('Action, States: ', action, _states)
-    obs, rewards, dones, info = env.step(action)
-    print('Obs, Rew, Done: ', obs, rewards, dones)
-    env.render()
+print('Save the trajectory.')
+actions, new_states, rewards = env.get_trajectory()
+np.savetxt('data/actions.txt', actions)
+np.savetxt('data/new_states.txt', new_states)
+np.savetxt('data/rewards.txt', rewards)
+
+print('Plot the rewards.')
+plt.close()
+plt.plot(rewards)
+plt.show()
