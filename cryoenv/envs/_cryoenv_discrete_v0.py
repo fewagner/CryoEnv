@@ -6,68 +6,108 @@ import numpy as np
 import collections
 
 
-def action_to_discrete(reset, V_decrease, wait, wait_iv=(2, 100), V_iv=(0, 99), wait_step=2, V_step=1):
-    assert wait % wait_step == 0, "wait has to be multiple of {}".format(wait_step)
-    assert wait >= wait_iv[0] and wait <= wait_iv[1], "wait should be between {} and {}".format(*wait_iv)
-    assert type(reset) == bool, "reset has to be bool variable"
-    assert V_decrease % V_step == 0, "V_decrease has to be multiple of {}".format(V_step)
-    assert V_decrease >= V_iv[0] and V_decrease <= V_iv[1], "V_decrease should be between {} and {}".format(*V_iv)
+def action_to_discrete(reset: list, V_decrease: list, wait: list,
+                       wait_iv: tuple = (2, 100), V_iv: tuple = (0, 99), wait_step=2, V_step=1):
+    assert all(w % wait_step == 0 for w in wait), "wait has to be multiple of {}".format(wait_step)
+    assert all(w >= wait_iv[0] and w <= wait_iv[1] for w in wait), "wait should be between {} and {}".format(*wait_iv)
+    assert all(type(r) == bool for r in reset), "reset has to be bool variable"
+    assert all(v % V_step == 0 for v in V_decrease), "V_decrease has to be multiple of {}".format(V_step)
+    assert all(v >= V_iv[0] and v <= V_iv[1] for v in V_decrease), "V_decrease should be between {} and {}".format(*V_iv)
 
     nmbr_discrete_V = (V_iv[1] - V_iv[0]) / V_step
     nmbr_discrete_wait = (wait_iv[1] - wait_iv[0]) / wait_step
-    V_in_range = (V_decrease - V_iv[0]) / V_step  # in (0, nmbr_discrete_V - 1)
-    wait_in_range = (wait - wait_iv[0]) / wait_step  # in (0, nmbr_discrete_wait - 1)
+    n_max = nmbr_discrete_V * nmbr_discrete_wait
 
-    if reset:
-        return int(nmbr_discrete_V * nmbr_discrete_wait)
-    else:
-        return int(V_in_range * nmbr_discrete_wait + wait_in_range)
+    ns = []
+
+    for r, v, w in zip(reset, V_decrease, wait):
+
+        V_in_range = (v - V_iv[0]) / V_step  # in (0, nmbr_discrete_V - 1)
+        wait_in_range = (w - wait_iv[0]) / wait_step  # in (0, nmbr_discrete_wait - 1)
+
+        if r:
+            ns.append(int(nmbr_discrete_V * nmbr_discrete_wait))
+        else:
+            ns.append(int(V_in_range * nmbr_discrete_wait + wait_in_range))
+
+    return np.sum([n * n_max ** i for i, n in enumerate(ns)])
 
 
-def action_from_discrete(n, wait_iv=(2, 100), V_iv=(0, 99), wait_step=2, V_step=1):
+def action_from_discrete(n, nmbr_channels, wait_iv=(2, 100), V_iv=(0, 99), wait_step=2, V_step=1):
     nmbr_discrete_V = (V_iv[1] - V_iv[0]) / V_step
     nmbr_discrete_wait = (wait_iv[1] - wait_iv[0]) / wait_step
     n_max = nmbr_discrete_V * nmbr_discrete_wait
 
     assert n % 1 == 0, "n has to be multiple of 1"
-    assert n >= 0 and n <= n_max, "n should be between 0 and {}".format(n_max)
+    assert n >= 0 and n <= n_max ** nmbr_channels, "n should be between 0 and {}".format(n_max ** nmbr_channels)
 
-    if n == n_max:
-        return (True, 0, 100)  # first action is reset, second V_decrease, third wait
-    else:
-        return (False, np.floor(n / nmbr_discrete_wait) * V_step + V_iv[0] , (n % nmbr_discrete_V) * wait_step + wait_iv[0])
+    ns = [int(n % n_max ** (i + 1) / n_max ** i) for i in range(nmbr_channels)]
+    reset = []
+    V_decrease = []
+    wait = []
+
+    for n in ns:
+        if n == n_max:
+            # first action is reset, second V_decrease, third wait
+            reset.append(True)
+            V_decrease.append(0)
+            wait.append(100)
+        else:
+            reset.append(False)
+            V_decrease.append(np.floor(n / nmbr_discrete_wait) * V_step + V_iv[0])
+            wait.append((n % nmbr_discrete_V) * wait_step + wait_iv[0])
+
+    return reset, V_decrease, wait
 
 
-def observation_to_discrete(V_set, ph, V_iv=(0, 99), ph_iv=(0, 0.99), V_step=1, ph_step=0.01):
-    assert ph % ph_step == 0, "ph has to be multiple of {}".format(ph_step)
-    assert ph >= ph_iv[0] and ph <= ph_iv[1], "ph should be between {} and {}".format(*ph_iv)
-    assert V_set % V_step == 0, "V_set has to be multiple of {}".format(V_step)
-    assert V_set >= V_iv[0] and V_set <= V_iv[1], "V_set should be between {} and {}".format(*V_iv)
+def observation_to_discrete(V_set: list, ph: list, V_iv=(0, 99), ph_iv=(0, 0.99), V_step=1, ph_step=0.01):
+    assert all(p % ph_step == 0 for p in ph), "ph has to be multiple of {}".format(ph_step)
+    assert all(p >= ph_iv[0] and p <= ph_iv[1] for p in ph), "ph should be between {} and {}".format(*ph_iv)
+    assert all(v % V_step == 0 for v in V_set), "V_set has to be multiple of {}".format(V_step)
+    assert all(v >= V_iv[0] and v <= V_iv[1] for v in V_set), "V_set should be between {} and {}".format(*V_iv)
 
     nmbr_discrete_V = (V_iv[1] - V_iv[0]) / V_step
     nmbr_discrete_ph = (ph_iv[1] - ph_iv[0]) / ph_step
-    V_in_range = (V_set - V_iv[0]) / V_step  # in (0, nmbr_discrete_V - 1)
-    ph_in_range = (ph - ph_iv[0]) / ph_step  # in (0, nmbr_discrete_ph - 1)
+    n_max = nmbr_discrete_V * nmbr_discrete_ph - 1
 
-    return int(V_in_range * nmbr_discrete_ph + ph_in_range)
+    ns = []
 
-def observation_from_discrete(n, V_iv=(0, 99), ph_iv=(0, 0.99), V_step=1, ph_step=0.01):
+    for v, p in zip(V_set, ph):
+
+        V_in_range = (v - V_iv[0]) / V_step  # in (0, nmbr_discrete_V - 1)
+        ph_in_range = (p - ph_iv[0]) / ph_step  # in (0, nmbr_discrete_ph - 1)
+
+        ns.append(int(V_in_range * nmbr_discrete_ph + ph_in_range))
+
+    return np.sum([n * n_max ** i for i, n in enumerate(ns)])
+
+
+def observation_from_discrete(n, nmbr_channels, V_iv=(0, 99), ph_iv=(0, 0.99), V_step=1, ph_step=0.01):
     nmbr_discrete_V = (V_iv[1] - V_iv[0]) / V_step
     nmbr_discrete_ph = (ph_iv[1] - ph_iv[0]) / ph_step
-    n_max = nmbr_discrete_V * nmbr_discrete_ph
+    n_max = nmbr_discrete_V * nmbr_discrete_ph - 1
 
     assert n % 1 == 0, "n has to be multiple of 1"
-    assert n >= 0 and n <= n_max, "n should be between 0 and {}".format(n_max)
+    assert n >= 0 and n <= n_max ** nmbr_channels, "n should be between 0 and {}".format(n_max ** nmbr_channels)
+
+    ns = [int(n % n_max ** (i + 1) / n_max ** i) for i in range(nmbr_channels)]
+    V_set = []
+    pulse_height = []
+
+    for n in ns:
+        V_set.append(np.floor(n / nmbr_discrete_ph) * V_step + V_iv[0])
+        pulse_height.append((n % nmbr_discrete_V) * ph_step + ph_iv[0])
 
     # first observation is V_set, second observation is pulse height
-    return (np.floor(n / nmbr_discrete_ph) * V_step + V_iv[0], (n % nmbr_discrete_V) * ph_step + ph_iv[0])
+    return V_set, pulse_height
+
 
 class CryoEnvDiscrete_v0(gym.Env):
     """
     Simplified discrete CryoEnv
 
     Rewards:
-    - If pulse height above 0.5 mV —> + waiting time, otherwise - waiting time
+    - If pulse height above 0.X mV —> + waiting time, otherwise - waiting time
     - Always -1 for sending pulse
 
     Actions:
@@ -85,52 +125,41 @@ class CryoEnvDiscrete_v0(gym.Env):
     metadata = {'render.modes': ['human']}
 
     def __init__(self,
+                 V_set_iv=(0, 99),
+                 V_set_step=1,
+                 ph_iv=(0, 0.99),
+                 ph_step=0.01,
+                 wait_iv=(2, 100),
+                 wait_step=2,
                  heater_resistance=np.array([100.]),
                  thermal_link_channels=np.array([[1.]]),
                  thermal_link_heatbath=np.array([1.]),
                  temperature_heatbath=0.,
-                 # alpha=1.,
-                 # beta=1.,
-                 # gamma=1.,
-                 s=3.,
-                 v=60.,
+                 min_ph=0.2,
                  g=0.001,
-                 r=1.,
-                 n=15,
                  control_pulse_amplitude=10,
                  env_fluctuations=1,
                  save_trajectory=False,
                  ):
 
         # input handling
-        self.max_vset = action_high[0, 1]
-        self.nmbr_channels = len(action_low)
-        self.nmbr_actions = 3  # first action is V_set decrease, second is waiting time, third is reset prob
-        self.nmbr_observations = 2  # first observation is V_set, second is PH
-        assert action_high.shape == (
-            self.nmbr_channels, self.nmbr_actions), "action_high must have same shape as action_low!"
-        assert oberservation_low.shape == (
-            self.nmbr_channels, self.nmbr_observations), "oberservation_low must have same length as action_low!"
-        assert oberservation_high.shape == (
-            self.nmbr_channels, self.nmbr_observations), "oberservation_high must have same shape as oberservation_low!"
-        assert len(heater_resistance) == self.nmbr_channels, "heater_resistance must have same length as action_low!"
+        nmbr_discrete_V = (V_set_iv[1] - V_set_iv[0]) / V_set_step
+        nmbr_discrete_ph = (ph_iv[1] - ph_iv[0]) / ph_step
+        nmbr_discrete_wait = (wait_iv[1] - wait_iv[0]) / wait_step
+
+        self.nmbr_channels = len(heater_resistance)
+
+        n_action_max = nmbr_discrete_V * nmbr_discrete_wait ** self.nmbr_channels
+        n_observation_max = (nmbr_discrete_V * nmbr_discrete_ph - 1) ** self.nmbr_channels
+
         assert thermal_link_channels.shape == (
             self.nmbr_channels,
             self.nmbr_channels), "thermal_link_channels must have shape (nmbr_channels, nmbr_channels)!"
         assert len(
-            thermal_link_heatbath) == self.nmbr_channels, "thermal_link_heatbath must have same length as action_low!"
+            thermal_link_heatbath) == self.nmbr_channels, "thermal_link_heatbath must have same length as heater_resistance!"
 
-        # create action and observation spaces
-        # self.action_space = spaces.Box(low=action_low.reshape(-1),
-        #                                high=action_high.reshape(-1),
-        #                                dtype=np.float32)
-        # self.observation_space = spaces.Box(low=oberservation_low.reshape(-1),
-        #                                     high=oberservation_high.reshape(-1),
-        #                                     dtype=np.float32)
-        self.action_space = spaces.MultiDiscrete(5001)
-        self.observation_space = spaces.Discrete(low=oberservation_low.reshape(-1),
-                                                 high=oberservation_high.reshape(-1),
-                                                 dtype=np.float32)
+        self.action_space = spaces.Discrete(n_action_max)
+        self.observation_space = spaces.Discrete(n_observation_max)
 
         # environment parameters
         self.heater_resistance = np.array(heater_resistance)
@@ -143,14 +172,7 @@ class CryoEnvDiscrete_v0(gym.Env):
         self.env_fluctuations = env_fluctuations
 
         # reward parameters
-        self.r = r
-        self.s = s
-        self.v = v
-        self.alpha = alpha
-        self.beta = beta
-        self.gamma = gamma
-        self.n = n
-        self.last_phs = collections.deque(maxlen=self.n)
+        self.min_ph = min_ph
 
         # sensor parameters
         def check_sensor_pars(k, T0):
@@ -195,50 +217,30 @@ class CryoEnvDiscrete_v0(gym.Env):
 
         reward = 0
 
-        for (st, a) in zip(new_state.reshape(-1, self.nmbr_observations),
-                           action.reshape(-1, self.nmbr_actions)):
+        # unpack action
+        reset, V_decrease, wait = action_from_discrete(action)
 
-            # unpack action
-            dV = a[0]
-            w = a[1]
-            z = a[2]
+        # unpack new state
+        V_set, ph = observation_from_discrete(new_state)
 
-            # unpack new state
-            V_set_new = st[0]
-            ph_new = st[1]
+        for r, dv, w, v, p in zip(reset, V_decrease, wait, V_set, ph):
+
+            # one second for sending a control pulse
+            reward = - 1
 
             # check stability
-            if len(self.last_phs) >= self.n:
-                if np.abs(ph_new - np.mean(self.last_phs)) > self.s * np.std(self.last_phs) \
-                        or ph_new < 2 * self.g:
-                    stable = False
-                else:
-                    stable = True
-                    self.last_phs.append(ph_new)
+            stable = p > self.min_ph
+
+            if stable:
+                reward += w
             else:
-                stable = True
-                self.last_phs.append(ph_new)
-
-            # elapsed time
-            time = np.copy(w)
-
-            # reset case
-            if z > 0.5:
-                reward -= self.gamma  # detector needs to go back to normal conducting phase
-                time = self.v
-
-            # normal case
-            # else:
-            reward -= self.alpha / time / ph_new  # detector range maximization
-            if len(self.last_phs) > self.n:
-                reward -= self.beta / time * np.std(self.last_phs)  # detector sigma minimization
-            reward -= self.gamma * (1 / time + self.r * dV)  # dead time due to sending of pulse and ramping
-            if not stable:
-                reward -= self.gamma  # penalty for instability
+                reward -= w
 
         return reward
 
     def step(self, action):
+
+        # TODO this whole method has to be adapted to the discrete actions and observations
 
         # get the next state
         new_state = np.empty((self.nmbr_channels, 2), dtype=self.state.dtype)
@@ -292,7 +294,7 @@ class CryoEnvDiscrete_v0(gym.Env):
         reward = self.reward(new_state, action)
 
         # update state
-        new_state = new_state.reshape(-1)
+        new_state = new_state.reshape(-1)  # TODO
         self.state = new_state
 
         # save trajectory
@@ -309,6 +311,7 @@ class CryoEnvDiscrete_v0(gym.Env):
         return new_state, reward, done, info
 
     def reset(self):
+        # TODO the line below has to be adapted to the discrete actions and observations
         self.state = np.array([[self.max_vset, self.g] * self.nmbr_channels]).reshape(-1)
         self.hysteresis[:] = False
         return self.state
