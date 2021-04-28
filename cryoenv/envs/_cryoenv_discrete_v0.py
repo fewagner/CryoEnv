@@ -4,13 +4,14 @@ from gym import error, spaces, utils
 from gym.utils import seeding
 import numpy as np
 import collections
+import math
 
 
-def action_to_discrete(reset: list, V_decrease: np.ndarray, wait: np.ndarray,
+def action_to_discrete(reset: np.ndarray, V_decrease: np.ndarray, wait: np.ndarray,
                        wait_iv: tuple = (2, 100), V_iv: tuple = (0, 99), wait_step=2, V_step=1):
     assert all(w % wait_step == 0 for w in wait), "wait has to be multiple of {}".format(wait_step)
     assert all(w >= wait_iv[0] and w <= wait_iv[1] for w in wait), "wait should be between {} and {}".format(*wait_iv)
-    assert all(type(r) == bool for r in reset), "reset has to be bool variable"
+    assert all(type(r) == np.bool_ for r in reset), "reset has to be bool variable"
     assert all(v % V_step == 0 for v in V_decrease), "V_decrease has to be multiple of {}".format(V_step)
     assert all(v >= V_iv[0] and v <= V_iv[1] for v in V_decrease), "V_decrease should be between {} and {}".format(
         *V_iv)
@@ -20,6 +21,10 @@ def action_to_discrete(reset: list, V_decrease: np.ndarray, wait: np.ndarray,
     n_max = nmbr_discrete_V * nmbr_discrete_wait
 
     ns = []
+
+    # print('Action Resets: ', reset)
+    # print('Action V decrease: ', V_decrease)
+    # print('Action Wait: ', wait)
 
     for r, v, w in zip(reset, V_decrease, wait):
 
@@ -31,7 +36,9 @@ def action_to_discrete(reset: list, V_decrease: np.ndarray, wait: np.ndarray,
         else:
             ns.append(int(V_in_range * nmbr_discrete_wait + wait_in_range))
 
-    return np.sum([n * n_max ** i for i, n in enumerate(ns)])
+    n = int(np.sum([n * n_max ** i for i, n in enumerate(ns)]))
+    # print('Discrete Action: ', n)
+    return n
 
 
 def action_from_discrete(n, nmbr_channels, wait_iv=(2, 100), V_iv=(0, 99), wait_step=2, V_step=1):
@@ -62,9 +69,9 @@ def action_from_discrete(n, nmbr_channels, wait_iv=(2, 100), V_iv=(0, 99), wait_
 
 
 def observation_to_discrete(V_set: np.ndarray, ph: np.ndarray, V_iv=(0, 99), ph_iv=(0, 0.99), V_step=1, ph_step=0.01):
-    assert all(p % ph_step == 0 for p in ph), "ph has to be multiple of {}".format(ph_step)
+    assert all(np.round(p/ph_step*10e6)/10e6 % 1 == 0 for p in ph), "ph has to be multiple of {}".format(ph_step)
     assert all(p >= ph_iv[0] and p <= ph_iv[1] for p in ph), "ph should be between {} and {}".format(*ph_iv)
-    assert all(v % V_step == 0 for v in V_set), "V_set has to be multiple of {}".format(V_step)
+    assert all(np.round(v/V_step*10e6)/10e6 % 1 == 0 for v in V_set), "V_set has to be multiple of {}".format(V_step)
     assert all(v >= V_iv[0] and v <= V_iv[1] for v in V_set), "V_set should be between {} and {}".format(*V_iv)
 
     nmbr_discrete_V = (V_iv[1] - V_iv[0]) / V_step
@@ -73,13 +80,18 @@ def observation_to_discrete(V_set: np.ndarray, ph: np.ndarray, V_iv=(0, 99), ph_
 
     ns = []
 
+    # print('Action V sets: ', V_set)
+    # print('Action PHs: ', ph)
+
     for v, p in zip(V_set, ph):
         V_in_range = (v - V_iv[0]) / V_step  # in (0, nmbr_discrete_V - 1)
         ph_in_range = (p - ph_iv[0]) / ph_step  # in (0, nmbr_discrete_ph - 1)
 
         ns.append(int(V_in_range * nmbr_discrete_ph + ph_in_range))
 
-    return np.sum([n * n_max ** i for i, n in enumerate(ns)])
+    n = int(np.sum([n * n_max ** i for i, n in enumerate(ns)]))
+    # print('Discrete Observation: ', n)
+    return n
 
 
 def observation_from_discrete(n, nmbr_channels, V_iv=(0, 99), ph_iv=(0, 0.99), V_step=1, ph_step=0.01):
@@ -151,13 +163,24 @@ class CryoEnvDiscrete_v0(gym.Env):
         self.wait_iv = wait_iv
         self.wait_step = wait_step
         nmbr_discrete_V = (V_set_iv[1] - V_set_iv[0]) / V_set_step
+        assert nmbr_discrete_V == np.floor(nmbr_discrete_V), 'nmbr_discrete_V must be whole number.'
+        nmbr_discrete_V = int(nmbr_discrete_V)
         nmbr_discrete_ph = (ph_iv[1] - ph_iv[0]) / ph_step
+        assert nmbr_discrete_ph == np.floor(nmbr_discrete_ph), 'nmbr_discrete_ph must be whole number.'
+        nmbr_discrete_ph = int(nmbr_discrete_ph)
         nmbr_discrete_wait = (wait_iv[1] - wait_iv[0]) / wait_step
+        assert nmbr_discrete_wait == np.floor(nmbr_discrete_wait), 'nmbr_discrete_wait must be whole number.'
+        nmbr_discrete_wait = int(nmbr_discrete_wait)
+        print('Nmbr discrete V: ', nmbr_discrete_V)
+        print('Nmbr discrete PH: ', nmbr_discrete_ph)
+        print('Nmbr discrete Wait: ', nmbr_discrete_wait)
 
         self.nmbr_channels = len(heater_resistance)
 
-        n_action_max = nmbr_discrete_V * nmbr_discrete_wait ** self.nmbr_channels
-        n_observation_max = (nmbr_discrete_V * nmbr_discrete_ph - 1) ** self.nmbr_channels
+        n_action_max = int(nmbr_discrete_V * nmbr_discrete_wait ** self.nmbr_channels)
+        n_observation_max = int((nmbr_discrete_V * nmbr_discrete_ph - 1) ** self.nmbr_channels)
+        print('N action max: ', n_action_max)
+        print('N observation max: ', n_observation_max)
 
         assert thermal_link_channels.shape == (
             self.nmbr_channels,
@@ -204,9 +227,14 @@ class CryoEnvDiscrete_v0(gym.Env):
 
         # render
         self.save_trajectory = save_trajectory
-        self.actions_trajectory = []
-        self.new_states_trajectory = []
         self.rewards_trajectory = []
+        self.V_decrease_trajectory = []
+        self.wait_trajectory = []
+        self.reset_trajectory = []
+        self.new_V_set_trajectory = []
+        self.new_ph_trajectory = []
+        self.T_trajectory = []
+        self.T_inj_trajectory = []
 
     def sensor_model(self, T, k, T0):
         return 1 / (1 + np.exp(-k * (T - T0)))
@@ -217,24 +245,24 @@ class CryoEnvDiscrete_v0(gym.Env):
             self.thermal_link_channels @ np.ones(self.nmbr_channels))) @ T
         return T.flatten()
 
-    def environment_model(self, state):
+    def environment_model(self, V_set):
         return np.random.normal(loc=0, scale=self.env_fluctuations, size=1)
 
     def get_pulse_height(self, V_set):
         # get long scale environment fluctuations - we also get short scale fluctuations further down
-        P_E_long = self.environment_model(self.state)
+        P_E_long = self.environment_model(V_set)
 
         # height without signal
         P_R = V_set / self.heater_resistance  # P...power; voltage goes through square rooter
         T = self.temperature_model(P_R=P_R,
-                                   P_E=self.environment_model(self.state) + P_E_long)
+                                   P_E=self.environment_model(V_set) + P_E_long)
         height_baseline = self.sensor_model(T, self.k, self.T0)
 
         # height with signal
         P_R_inj = np.sqrt(V_set ** 2 + self.control_pulse_amplitude ** 2) / \
                   self.heater_resistance  # P...power; voltage goes through square rooter
         T_inj = self.temperature_model(P_R=P_R_inj,
-                                       P_E=self.environment_model(self.state) + P_E_long)
+                                       P_E=self.environment_model(V_set) + P_E_long)
         height_signal = self.sensor_model(T_inj, self.k, self.T0)
 
         # difference is pulse height
@@ -243,7 +271,12 @@ class CryoEnvDiscrete_v0(gym.Env):
         # hysteresis case
         phs[T < self.T_hyst] = self.g
 
-        return phs
+        # fix to discrete values
+        phs = np.floor(phs/self.ph_step)*self.ph_step
+        phs[phs < self.ph_iv[0]] = self.ph_iv[0]
+        phs[phs > self.ph_iv[1]] = self.ph_iv[1]
+
+        return phs, T, T_inj
 
     def reward(self, new_state, action):
 
@@ -283,7 +316,7 @@ class CryoEnvDiscrete_v0(gym.Env):
         future_V_sets[resets] = self.V_set_iv[1]
 
         # get the next phs
-        future_phs = self.get_pulse_height(future_V_sets)
+        future_phs, future_T, future_T_inj = self.get_pulse_height(future_V_sets)
 
         # pack new_state
         new_state = observation_to_discrete(V_set=future_V_sets, ph=future_phs)
@@ -296,9 +329,14 @@ class CryoEnvDiscrete_v0(gym.Env):
 
         # save trajectory
         if self.save_trajectory:
-            self.actions_trajectory.append(action)
-            self.new_states_trajectory.append(new_state)
             self.rewards_trajectory.append(reward)
+            self.V_decrease_trajectory.append(V_decs)
+            self.wait_trajectory.append(ws)
+            self.reset_trajectory.append(resets)
+            self.new_V_set_trajectory.append(future_V_sets)
+            self.new_ph_trajectory.append(future_phs)
+            self.T_trajectory.append(future_T)
+            self.T_inj_trajectory.append(future_T_inj)
 
         # the task is continuing
         done = False
@@ -308,15 +346,20 @@ class CryoEnvDiscrete_v0(gym.Env):
         return new_state, reward, done, info
 
     def reset(self):
-        future_V_sets = self.V_set_iv[1]
-        future_phs = self.get_pulse_height(future_V_sets)
+        future_V_sets = self.V_set_iv[1]*np.ones([self.nmbr_channels], dtype=float)
+        future_phs, _, _ = self.get_pulse_height(future_V_sets)
         self.state = observation_to_discrete(V_set=future_V_sets, ph=future_phs)
         return self.state
 
     def get_trajectory(self):
-        return np.array(self.actions_trajectory), \
-               np.array(self.new_states_trajectory), \
-               np.array(self.rewards_trajectory)
+        return np.array(self.rewards_trajectory), \
+               np.array(self.V_decrease_trajectory), \
+               np.array(self.wait_trajectory), \
+               np.array(self.reset_trajectory),\
+               np.array(self.new_V_set_trajectory), \
+               np.array(self.new_ph_trajectory), \
+               np.array(self.T_trajectory), \
+               np.array(self.T_inj_trajectory)
 
     def render(self, mode='human'):
         pass
