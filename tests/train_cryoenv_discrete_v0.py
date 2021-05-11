@@ -103,8 +103,6 @@ print("State Space {}".format(env.observation_space))
 # %% codecell
 # STEP 1 - Initializing the Q-table
 
-Q = np.zeros((env.observation_space.n, env.action_space.n), dtype=np.float32)
-print('Shape Q table: ', Q.shape)
 # %% codecell
 # Setting the hyperparameters
 
@@ -127,8 +125,10 @@ decay = 1/train_episodes
 training_rewards = np.empty((nmbr_agents, train_episodes), dtype=float)
 epsilons = np.empty((nmbr_agents, train_episodes), dtype=float)
 
-for agent in range(nmbr_agents):
+for agent in range(nmbr_agents):  # pool
     print('\nTrain Agent Nmbr: ', agent)
+    Q = np.zeros((env.observation_space.n, env.action_space.n), dtype=np.float32)
+    print('Shape Q table: ', Q.shape)
     for episode in trange(train_episodes):
         # Reseting the environment each time as per requirement
         state = env.reset()
@@ -208,7 +208,7 @@ host.yaxis.label.set_color(p1.get_color())
 par1.yaxis.label.set_color(p2.get_color())
 
 fig.tight_layout()
-plt.title('CryoEnvDiscrete v0: Q-Learning Training')
+fig.suptitle('CryoEnvDiscrete v0: Q-Learning Training')
 plt.savefig(fname='training.pdf')
 
 plt.show()
