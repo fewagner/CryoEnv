@@ -188,7 +188,7 @@ class CryoEnvDiscrete_v0(gym.Env):
         assert k is None or len(k) == self.nmbr_channels, 'If k is set, it must have length nmbr_channels!'
         assert T0 is None or len(T0) == self.nmbr_channels, 'If T0 is set, it must have length nmbr_channels!'
 
-        n_action_max = int((nmbr_discrete_V * nmbr_discrete_wait + 1) ** self.nmbr_channels)
+        n_action_max = int((nmbr_discrete_V + 1) ** self.nmbr_channels) * nmbr_discrete_wait
         n_observation_max = int((nmbr_discrete_V * nmbr_discrete_ph) ** self.nmbr_channels)
         print('N action max: ', n_action_max)
         print('N observation max: ', n_observation_max)
@@ -320,7 +320,7 @@ class CryoEnvDiscrete_v0(gym.Env):
         # unpack new state
         V_set, ph = self.observation_from_discrete(new_state)
 
-        for r, dv, w, v, p in zip(reset, V_decrease, wait, V_set, ph):
+        for r, dv, w, p in zip(reset, V_decrease, V_set, ph):
 
             # one second for sending a control pulse
             reward = - 1
@@ -331,15 +331,15 @@ class CryoEnvDiscrete_v0(gym.Env):
             # print(r, dv, w, v, p)
 
             if stable:
-                reward += w
+                reward += wait
             else:
-                reward -= w
+                reward -= wait
 
         return reward
 
     def step(self, action):
         # unpack action
-        resets, V_decs, ws = self.action_from_discrete(action)
+        resets, V_decs, wait = self.action_from_discrete(action)
 
         # unpack current state
         V_sets, phs = self.observation_from_discrete(self.state)
@@ -365,7 +365,7 @@ class CryoEnvDiscrete_v0(gym.Env):
         if self.save_trajectory:
             self.rewards_trajectory.append(reward)
             self.V_decrease_trajectory.append(V_decs)
-            self.wait_trajectory.append(ws)
+            self.wait_trajectory.append(wait)
             self.reset_trajectory.append(resets)
             self.new_V_set_trajectory.append(future_V_sets)
             self.new_ph_trajectory.append(future_phs)

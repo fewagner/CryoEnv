@@ -6,7 +6,7 @@ from cryoenv.envs._discretization import action_to_discrete, \
 V_SET_IV = (0, 99)
 V_SET_STEP = 1
 PH_IV = (0, 0.99)
-PH_STEP = 0.01
+PH_STEP = 0.001
 WAIT_IV = (2, 100)
 WAIT_STEP = 2
 NMBR_CHANNELS = 1
@@ -37,6 +37,10 @@ for i, resets in enumerate([True, False]):
             discrete_actions[i, j, k] = action_to_discrete(resets, V_dec, wait,
                                                            wait_iv=WAIT_IV, V_iv=V_SET_IV, wait_step=WAIT_STEP,
                                                            V_step=V_SET_STEP)
+            if not resets:
+                # print(discrete_actions[i, j, k])
+                assert discrete_actions[i, j, k] not in used_actions, f'Action value used twice: {discrete_actions[i, j, k]}'
+            used_actions.append(discrete_actions[i, j, k])
             r, dV, w = action_from_discrete(n=discrete_actions[i, j, k], nmbr_channels=NMBR_CHANNELS,
                                             wait_iv=WAIT_IV, V_iv=V_SET_IV, wait_step=WAIT_STEP,
                                             V_step=V_SET_STEP)
@@ -47,6 +51,8 @@ for i, resets in enumerate([True, False]):
 
 print(discrete_actions)
 
+used_observations = []
+
 # observations grid
 discrete_observations = np.empty((nmbr_discrete_V, nmbr_discrete_ph), dtype=int)
 for i, V_set in enumerate(np.arange(V_SET_IV[0], V_SET_IV[1] + V_SET_STEP, V_SET_STEP)):
@@ -55,6 +61,9 @@ for i, V_set in enumerate(np.arange(V_SET_IV[0], V_SET_IV[1] + V_SET_STEP, V_SET
         ph = np.array([ph])
         discrete_observations[i, j] = observation_to_discrete(V_set, ph, V_iv=V_SET_IV, ph_iv=PH_IV, V_step=V_SET_STEP,
                                                               ph_step=PH_STEP)
+        # print(discrete_observations[i, j])
+        assert discrete_observations[i, j] not in used_observations, f'Observation value used twice: {discrete_observations[i, j]}'
+        used_observations.append(discrete_observations[i, j])
         V, p = observation_from_discrete(discrete_observations[i, j], nmbr_channels=NMBR_CHANNELS, V_iv=V_SET_IV, ph_iv=PH_IV,
                                          V_step=V_SET_STEP, ph_step=PH_STEP)
         assert V == V_set, f'Voltage setpoints disagree: origin {V_set}, conv {V}'

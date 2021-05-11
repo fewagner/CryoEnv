@@ -11,19 +11,19 @@ gym.logger.set_level(40)
 # constants
 V_SET_IV = (0, 99)
 V_SET_STEP = 1
-PH_IV = (0, 0.99995)
-PH_STEP = 0.00005
+PH_IV = (0, 0.99)
+PH_STEP = 0.01
 WAIT_IV = (2, 100)
 WAIT_STEP = 2
 HEATER_RESISTANCE = np.array([100.])
 THERMAL_LINK_CHANNELS = np.array([[1.]])
 THERMAL_LINK_HEATBATH = np.array([1.])
 TEMPERATURE_HEATBATH = 0.
-MIN_PH = 0.1
+MIN_PH = 0.35
 G = np.array([0.001])
 T_HYST = np.array([0.001])
 CONTROL_PULSE_AMPLITUDES = [50, 20, 5]
-ENV_FLUCTUATIONS = 0.001
+ENV_FLUCTUATIONS = 0.005
 k = np.array([15])
 T0 = np.array([0.5])
 

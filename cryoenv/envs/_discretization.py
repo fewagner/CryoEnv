@@ -77,10 +77,15 @@ def observation_to_discrete(V_set: np.ndarray, ph: np.ndarray, V_iv=(0, 99), ph_
         V_step)
     assert all(v >= V_iv[0] and v <= V_iv[1] for v in V_set), "V_set should be between {} and {}".format(*V_iv)
 
+    # print('ph: ', ph)
+
     nmbr_discrete_V = int((V_iv[1] - V_iv[0]) / V_step + 1)
     nmbr_discrete_ph = int((ph_iv[1] - ph_iv[0]) / ph_step + 1)
     # n_max = int(nmbr_discrete_V * nmbr_discrete_ph - 1)
     len_n = int(nmbr_discrete_V * nmbr_discrete_ph)
+
+    # print('len_n: ', len_n)
+    # print('nmbr_discrete_ph: ', nmbr_discrete_ph)
 
     ns = []
 
@@ -88,7 +93,10 @@ def observation_to_discrete(V_set: np.ndarray, ph: np.ndarray, V_iv=(0, 99), ph_
         V_in_range = (v - V_iv[0]) / V_step  # in (0, nmbr_discrete_V - 1)
         ph_in_range = (p - ph_iv[0]) / ph_step  # in (0, nmbr_discrete_ph - 1)
 
-        ns.append(int(V_in_range * nmbr_discrete_ph + ph_in_range))
+        # print('ph_in_range: ', ph_in_range)
+        # print('this n no round: ', V_in_range * nmbr_discrete_ph + ph_in_range)
+
+        ns.append(np.round(V_in_range * nmbr_discrete_ph + ph_in_range))
 
     # print('ns: ', ns)
     n = int(np.sum([n * len_n ** i for i, n in enumerate(ns)]))
@@ -113,6 +121,6 @@ def observation_from_discrete(n, nmbr_channels, V_iv=(0, 99), ph_iv=(0, 0.99), V
 
     for n in ns:
         V_set.append(np.floor(n / nmbr_discrete_ph) * V_step + V_iv[0])
-        pulse_height.append((n % nmbr_discrete_V) * ph_step + ph_iv[0])
+        pulse_height.append((n % nmbr_discrete_ph) * ph_step + ph_iv[0])
 
     return np.array(V_set), np.array(pulse_height)
