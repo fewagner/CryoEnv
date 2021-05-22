@@ -106,17 +106,19 @@ print("State Space {}".format(env.observation_space))
 # %% codecell
 # Setting the hyperparameters
 
-nmbr_agents = 10
-train_episodes = 100
+nmbr_agents = 1
+train_episodes = 200
 test_episodes = 1
-max_steps = 10000
+max_steps = 5000
 
 alpha = 0.7  # learning rate
 discount_factor = 0.618
 epsilon = 1
 max_epsilon = 1
 min_epsilon = 0.01
-decay = 1/train_episodes
+decay = 1 / train_episodes
+
+plot_trajectories = [0, int(train_episodes / 2), train_episodes - 1]  # only for the first agent
 
 # %% codecell
 # Training the agent
@@ -124,6 +126,7 @@ decay = 1/train_episodes
 # Creating lists to keep track of reward and epsilon values
 training_rewards = np.empty((nmbr_agents, train_episodes), dtype=float)
 epsilons = np.empty((nmbr_agents, train_episodes), dtype=float)
+trajectories = np.empty((len(plot_trajectories), max_steps), dtype=float)
 
 for agent in range(nmbr_agents):  # pool
     print('\nTrain Agent Nmbr: ', agent)
@@ -157,7 +160,7 @@ for agent in range(nmbr_agents):  # pool
             ### STEP 5: update the Q-table
             # Updating the Q-table using the Bellman equation
             Q[state, action] = Q[state, action] + alpha * (
-                        reward + discount_factor * np.max(Q[new_state, :]) - Q[state, action])
+                    reward + discount_factor * np.max(Q[new_state, :]) - Q[state, action])
             # Increasing our total reward and updating the state
             total_training_rewards += reward
             state = new_state
@@ -171,8 +174,13 @@ for agent in range(nmbr_agents):  # pool
         epsilon = min_epsilon + (max_epsilon - min_epsilon) * np.exp(-decay * episode)
 
         # Adding the total reward and reduced epsilon values
-        training_rewards[agent, episode] = total_training_rewards
+        training_rewards[agent, episode] = total_training_rewards/max_steps
         epsilons[agent, episode] = epsilon
+
+        # save the v set trajectory
+        if agent == 0 and episode in plot_trajectories:
+            print('Write trajectory of episode {} in index  {}.'.format(episode, plot_trajectories.index(episode)))
+            trajectories[plot_trajectories.index(episode), :] = env.get_trajectory()[4][:, 0]  # TODO
 
 # saving the Q table
 np.save("q_table", Q)
@@ -188,7 +196,7 @@ x = range(train_episodes)
 par1 = host.twinx()
 
 host.set_xlabel("Episode")
-host.set_ylabel("Reward")
+host.set_ylabel("Average Reward")
 par1.set_ylabel("Epsilon")
 
 color1 = 'green'
@@ -200,7 +208,8 @@ low = np.mean(training_rewards, axis=0) - np.std(training_rewards, axis=0)
 _ = host.fill_between(x, y1=up, y2=low, color=color1, zorder=5, alpha=0.3)
 _ = host.text(x=0.5, y=0.95, s=r'$\alpha$: {}'.format(alpha), transform=host.transAxes, ha='center')
 _ = host.text(x=0.5, y=0.9, s=r'$\gamma$: {}'.format(discount_factor), transform=host.transAxes, ha='center')
-p2, = par1.plot(x, np.mean(epsilons, axis=0), color=color2, label="Epsilon", linewidth=2.5, alpha=0.5, linestyle='dashed', zorder=10)
+p2, = par1.plot(x, np.mean(epsilons, axis=0), color=color2, label="Epsilon", linewidth=2.5, alpha=0.5,
+                linestyle='dashed', zorder=10)
 
 par1.spines['right'].set_position(('outward', 0))
 
@@ -211,4 +220,14 @@ fig.tight_layout()
 fig.suptitle('CryoEnvDiscrete v0: Q-Learning Training')
 plt.savefig(fname='training.pdf')
 
+plt.show()
+
+# plot the voltage set point trajectory
+plt.close()
+for traj, nmbr in zip(trajectories, plot_trajectories):
+    plt.plot(traj, linewidth=2, label='Trajectory ' + str(nmbr))
+plt.title('Voltage Set Point Trajectories')
+plt.xlabel('Environment Step')
+plt.ylabel('Voltage Setpoint (a.u.)')
+plt.legend()
 plt.show()

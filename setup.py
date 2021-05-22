@@ -5,5 +5,6 @@ setup(name='cryoenv',
       install_requires=['gym',
                         'stable_baselines3',
                         'tqdm',
+                        'numba',
                         ]
       )
