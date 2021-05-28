@@ -128,6 +128,9 @@ class CryoEnvDiscrete_v0(gym.Env):
 
         # render
         self.save_trajectory = save_trajectory
+        self.reset_trajectories()
+
+    def reset_trajectories(self):
         self.rewards_trajectory = []
         self.V_decrease_trajectory = []
         self.wait_trajectory = []
@@ -271,6 +274,7 @@ class CryoEnvDiscrete_v0(gym.Env):
         future_V_sets = self.V_set_iv[1]*np.ones([self.nmbr_channels], dtype=float)
         future_phs, _, _ = self.get_pulse_height(future_V_sets)
         self.state = self.observation_to_discrete(V_set=future_V_sets, ph=future_phs)
+        self.reset_trajectories()
         return self.state
 
     def get_trajectory(self):
