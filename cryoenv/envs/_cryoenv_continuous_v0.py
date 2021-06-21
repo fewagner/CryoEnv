@@ -133,7 +133,7 @@ class CryoEnvContinuous_v0(gym.Env):
         self.T_hyst = np.full(self.nmbr_channels, T_hyst)
         self.control_pulse_amplitude = np.full(self.nmbr_channels, control_pulse_amplitude)
         self.env_fluctuations = np.full(self.nmbr_channels, env_fluctuations)
-
+        self.T = np.zeros(self.nmbr_channels)
         self.hyst = np.full(self.nmbr_channels, False) # setting if hysteresis is active
         self.hyst_waited = np.zeros(self.nmbr_channels)
         self.T_hyst_reset = np.full(self.nmbr_channels, T_hyst_reset)
@@ -258,9 +258,10 @@ class CryoEnvContinuous_v0(gym.Env):
         future_V_sets[future_V_sets < self.V_set_iv[0]] = self.V_set_iv[future_V_sets < self.V_set_iv[0]][0]
         # future_V_sets[resets] = self.V_set_iv[resets][1]
 
+        self.T = self.temperature_model(P_R = V_set / self.heater_resistance,P_E=0)
         self.hyst_waited += wait
         self.hyst = np.logical_and(
-                        np.logical_or(T < self.T_hyst, self.hyst),
+                        np.logical_or(self.T < self.T_hyst, self.hyst),
                         self.hyst_waited < self.hyst_wait
                     )
         self.hyst_waited[self.hyst] = np.zeros(self.hyst_waited[self.hyst].shape)
