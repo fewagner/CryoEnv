@@ -47,6 +47,7 @@ class CryoEnvContinuous_v0(gym.Env):
                  save_trajectory=False,
                  k: np.ndarray = None, # logistic curve parameters
                  T0: np.ndarray = None,
+                 **kwargs,
                  ):
 
         # input handling
