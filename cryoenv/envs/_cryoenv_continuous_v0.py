@@ -73,11 +73,11 @@ class CryoEnvContinuous_v0(gym.Env):
         self.nmbr_actions = 2 # will change later
         self.nmbr_observations = 2 # will change later
 
-        if type(V_set_iv)==tuple:
-            assert len(V_set_iv)==self.nmbr_actions,\
-                "The tuple of V_set_iv must be of length {}.".format(self.nmbr_actions)
-            self.V_set_iv = [[V_set_iv] for i in range(self.nmbr_channels)]
-        elif type(V_set_iv)==list or type(V_set_iv)==np.ndarray:
+        if type(V_set_iv) is tuple:
+            assert len(V_set_iv)==2,\
+                "The tuple of V_set_iv must be of length {}.".format(2)
+            self.V_set_iv = np.array([V_set_iv for i in range(self.nmbr_channels)])
+        elif type(V_set_iv) is list or type(V_set_iv) is np.ndarray:
             assert len(V_set_iv)==self.nmbr_channels,\
                 "The list V_set_iv must be of length of {}.".format(self.nmbr_channels)
             self.V_set_iv = V_set_iv
@@ -85,11 +85,11 @@ class CryoEnvContinuous_v0(gym.Env):
             raise ValueError("V_set_iv has to be either a tuple or a list/numpy.ndarray.")
 
 
-        if type(wait_iv)==tuple:
-            assert len(wait_iv)==self.nmbr_actions,\
-                "The tuple of wait_iv must be of length {}.".format(self.nmbr_actions)
-            self.wait_iv = [[wait_iv] for i in range(self.nmbr_channels)]
-        elif type(wait_iv)==list or type(wait_iv)==np.ndarray:
+        if type(wait_iv) is tuple:
+            assert len(wait_iv)==2,\
+                "The tuple of wait_iv must be of length {}.".format(2)
+            self.wait_iv = np.array([wait_iv for i in range(self.nmbr_channels)])
+        elif type(wait_iv) is list or type(wait_iv) is np.ndarray:
             assert len(wait_iv)==self.nmbr_channels,\
                 "The list wait_iv must be of length of {}.".format(self.nmbr_channels)
             self.wait_iv = wait_iv
@@ -98,9 +98,9 @@ class CryoEnvContinuous_v0(gym.Env):
 
 
         if type(ph_iv) is tuple:
-            assert len(ph_iv)==self.nmbr_actions,\
-                "The tuple of ph_iv must be of length {}.".format(self.nmbr_actions)
-            self.ph_iv = [[ph_iv] for i in range(self.nmbr_channels)]
+            assert len(ph_iv)==2,\
+                "The tuple of ph_iv must be of length {}.".format(2)
+            self.ph_iv = np.array([ph_iv for i in range(self.nmbr_channels)])
         elif type(ph_iv) is list or type(ph_iv) is np.ndarray:
             assert len(ph_iv)==self.nmbr_channels,\
                 "The list ph_iv must be of length of {}.".format(self.nmbr_channels)
@@ -298,7 +298,7 @@ class CryoEnvContinuous_v0(gym.Env):
         return new_state, reward, done, info
 
     def reset(self):
-        future_V_sets = self.V_set_iv[1]*np.ones([self.nmbr_channels], dtype=float)
+        future_V_sets = self.V_set_iv[:, 1]  # *np.ones([self.nmbr_channels], dtype=float)
         future_phs, _, _ = self.get_pulse_height(future_V_sets)
         self.state = np.array([future_V_sets, future_phs]).T.reshape(-1)
         self.hyst = np.full(self.nmbr_channels, False)
