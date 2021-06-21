@@ -271,7 +271,7 @@ class CryoEnvContinuous_v0(gym.Env):
         future_phs, future_T, future_T_inj = self.get_pulse_height(future_V_sets)
 
         # pack new_state
-        new_state = np.array([future_V_sets, future_phs]).T
+        new_state = np.array([future_V_sets, future_phs]).T.reshape(-1)
 
         # get the reward
         reward = self.reward(new_state, action)
@@ -300,7 +300,7 @@ class CryoEnvContinuous_v0(gym.Env):
     def reset(self):
         future_V_sets = self.V_set_iv[1]*np.ones([self.nmbr_channels], dtype=float)
         future_phs, _, _ = self.get_pulse_height(future_V_sets)
-        self.state = np.array([future_V_sets, future_phs]).T
+        self.state = np.array([future_V_sets, future_phs]).T.reshape(-1)
         self.hyst = np.full(self.nmbr_channels, False)
         self.hyst_waited = np.zeros(self.nmbr_channels)
         self.reset_trajectories()
