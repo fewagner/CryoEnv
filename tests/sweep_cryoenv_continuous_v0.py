@@ -53,13 +53,8 @@ for amp in CONTROL_PULSE_AMPLITUDES:
                          env_kwargs['V_set_iv'][0] - env_kwargs['V_set_step'],
                          - env_kwargs['V_set_step']):
         # print(f'V_set: {v_s}')
-        # action = env.action_to_discrete(reset=np.zeros([1], dtype=bool),
-        #                             V_decrease=env_kwargs['V_set_step'] * np.ones([1], dtype=float),
-        #                             wait=np.array([10], dtype=float))
-        # TODO def action!!
-        action =
+        action = np.array([[v_s, ], [10, ]]).T  # wait = 10
         new_state, _, _, _ = env.step(action=action)
-        # new_V_set, new_ph = env.observation_from_discrete(new_state)
         count += 1
 
     trajectories.append(env.get_trajectory())
@@ -77,7 +72,6 @@ plt.xlabel('Simplified Temperature (a.u.)')
 plt.ylabel('Simplified Resistance (a.u.)')
 plt.savefig(fname='sensor.pdf')
 plt.show()
-
 
 ####
 # we want to see the trajectories
