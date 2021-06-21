@@ -9,65 +9,57 @@ from cryoenv.envs._cryoenv_discrete_v0 import action_to_discrete, observation_fr
 gym.logger.set_level(40)
 
 # constants
-V_SET_IV = (0, 99)
-V_SET_STEP = 1
-PH_IV = (0, 0.99)
-PH_STEP = 0.01
-WAIT_IV = (2, 100)
-WAIT_STEP = 2
-HEATER_RESISTANCE = np.array([100.])
-THERMAL_LINK_CHANNELS = np.array([[1.]])
-THERMAL_LINK_HEATBATH = np.array([1.])
-TEMPERATURE_HEATBATH = 0.
-MIN_PH = 0.1  # 0.35
-G = np.array([0.0001])
-T_HYST = np.array([0.001])
 CONTROL_PULSE_AMPLITUDES = [50, 20, 5]
-ENV_FLUCTUATIONS = 0.005
-k = np.array([15])
-T0 = np.array([0.5])
+env_kwargs = {
+    'V_set_iv': (0, 99),
+    'V_set_step': 1,
+    'ph_iv': (0, 0.99),
+    'ph_step': 0.01,
+    'wait_iv': (10, 50),
+    'wait_step': 2,
+    'heater_resistance': np.array([100.]),
+    'thermal_link_channels': np.array([[1.]]),
+    'thermal_link_heatbath': np.array([1.]),
+    'temperature_heatbath': 0.,
+    'min_ph': 0.1,
+    'g': np.array([0.0001]),
+    'T_hyst': np.array([0.001]),
+    'control_pulse_amplitude': 50,
+    'env_fluctuations': 0.005,
+    'save_trajectory': True,
+    'k': np.array([15]),
+    'T0': np.array([0.5]),
+}
 
 # main
 
 trajectories = []
 
 for amp in CONTROL_PULSE_AMPLITUDES:
+    env_kwargs['control_pulse_amplitude'] = amp
 
     print('Create Environment.')
-    env = gym.make('cryoenv:cryoenv-discrete-v0',
-                   V_set_iv=V_SET_IV,
-                   V_set_step=V_SET_STEP,
-                   ph_iv=PH_IV,
-                   ph_step=PH_STEP,
-                   wait_iv=WAIT_IV,
-                   wait_step=WAIT_STEP,
-                   heater_resistance=HEATER_RESISTANCE,
-                   thermal_link_channels=THERMAL_LINK_CHANNELS,
-                   thermal_link_heatbath=THERMAL_LINK_HEATBATH,
-                   temperature_heatbath=TEMPERATURE_HEATBATH,
-                   min_ph=MIN_PH,
-                   g=G,
-                   T_hyst=T_HYST,
-                   control_pulse_amplitude=amp,
-                   env_fluctuations=ENV_FLUCTUATIONS,
-                   save_trajectory=True,
-                   k=k,
-                   T0=T0,
+    env = gym.make('cryoenv:cryoenv-continuous-v0',
+                   **env_kwargs,
                    )
 
     # print('Check Environment.')
-    # check_env(env)
+    check_env(env)
 
     print('Sweep from top to bottom.')
     count = 0
     env.reset()
-    for v_s in np.arange(V_SET_IV[1], V_SET_IV[0] - V_SET_STEP, - V_SET_STEP):
+    for v_s in np.arange(env_kwargs['V_set_iv'][1],
+                         env_kwargs['V_set_iv'][0] - env_kwargs['V_set_step'],
+                         - env_kwargs['V_set_step']):
         # print(f'V_set: {v_s}')
-        action = env.action_to_discrete(reset=np.zeros([1], dtype=bool),
-                                    V_decrease=V_SET_STEP * np.ones([1], dtype=float),
-                                    wait=np.array([10], dtype=float))
+        # action = env.action_to_discrete(reset=np.zeros([1], dtype=bool),
+        #                             V_decrease=env_kwargs['V_set_step'] * np.ones([1], dtype=float),
+        #                             wait=np.array([10], dtype=float))
+        # TODO def action!!
+        action =
         new_state, _, _, _ = env.step(action=action)
-        new_V_set, new_ph = env.observation_from_discrete(new_state)
+        # new_V_set, new_ph = env.observation_from_discrete(new_state)
         count += 1
 
     trajectories.append(env.get_trajectory())
