@@ -9,22 +9,22 @@ from ._discretization import *
 
 class CryoEnvContinuous_v0(gym.Env):
     """
-    Simplified discrete CryoEnv
+    Simplified continuous CryoEnv
 
     Rewards:
     - If pulse height above 0.X mV —> + waiting time, otherwise - waiting time
     - Always -1 for sending pulse
 
     Actions:
-    - Reset yes/no (V_set back to 99, )
     - Decrease V_set by 0 to 99, in 1 steps
     - Waiting time between 2 and 100 seconds, in 2 seconds steps
     - —> action space size 1 + 100*50 = 5001
 
-    States:
+    Oberservation (State):
     - V_set 100 steps from 0 to 99
     - PH 100 steps from 0 to 0.99
     - —> observation space size 100*100 = 10000
+
     """
 
     metadata = {'render.modes': ['human']}
@@ -32,13 +32,13 @@ class CryoEnvContinuous_v0(gym.Env):
     def __init__(self,
                  V_set_iv=(0., 99.), # first action
                  wait_iv=(2., 100.), # secound action
-                 ph_iv=(0, 0.99),
+                 ph_iv=(0., 0.99),
                  heater_resistance=np.array([100.]),
                  thermal_link_channels=np.array([[1.]]),
                  thermal_link_heatbath=np.array([1.]),
                  temperature_heatbath=0.,
                  min_ph=0.2,
-                 g=np.array([0.001]),
+                 g=np.array([0.001]), # offset from 0
                  T_hyst=np.array([0.001]),
                  control_pulse_amplitude=10,
                  env_fluctuations=1,
@@ -55,35 +55,70 @@ class CryoEnvContinuous_v0(gym.Env):
         self.T0 = T0
 
 
-
         self.nmbr_channels = len(heater_resistance)
-        assert k is None or len(k) == self.nmbr_channels, 'If k is set, it must have length nmbr_channels!'
-        assert T0 is None or len(T0) == self.nmbr_channels, 'If T0 is set, it must have length nmbr_channels!'
-
-        n_action_max = int((nmbr_discrete_V + 1) ** self.nmbr_channels) * nmbr_discrete_wait
-        n_observation_max = int((nmbr_discrete_V * nmbr_discrete_ph) ** self.nmbr_channels)
-        print('N action max: ', n_action_max)
-        print('N observation max: ', n_observation_max)
+        assert k is None or len(k) == self.nmbr_channels,
+            'If k is set, it must have length nmbr_channels!'
+        assert T0 is None or len(T0) == self.nmbr_channels,
+            'If T0 is set, it must have length nmbr_channels!'
 
         assert thermal_link_channels.shape == (
             self.nmbr_channels,
-            self.nmbr_channels), "thermal_link_channels must have shape (nmbr_channels, nmbr_channels)!"
-        assert len(
-            thermal_link_heatbath) == self.nmbr_channels, "thermal_link_heatbath must have same length as heater_resistance!"
+            self.nmbr_channels),
+            "thermal_link_channels must have shape (nmbr_channels, nmbr_channels)!"
+        assert len(thermal_link_heatbath) == self.nmbr_channels,
+            "thermal_link_heatbath must have same length as heater_resistance!"
 
-        V_set_iv=(0, 99), # first action
-        wait_iv=(2, 100), # secound action
 
-        action_low=np.array([[V_set_iv[0], wait_iv[0]]]),
-        action_high=np.array([[V_set_iv[1], wait_iv[1]]]),
+        action_low  = []
+        action_high = []
+        observation_low  = []
+        observation_high = []
 
-        # self.action_space = spaces.Discrete(n_action_max)
+
+        if type(V_set_iv)==tuple and type(wait_iv)==tuple and type(ph_iv)==tuple:
+            assert len(V_set_iv)==2,
+                "The tuple of V_set_iv must be of length 2."
+            assert len(wait_iv)==2,
+                "The tuple of wait_iv must be of length 2."
+            assert len(ph_iv)==2,
+                "The tuple of ph_iv must be of length 2."
+
+            action_low  = np.array([[V_set_iv[0], wait_iv[0]] for i in range(nmbr_channels)])
+            action_high = np.array([[V_set_iv[1], wait_iv[1]] for i in range(nmbr_channels)])
+            observation_low  = np.array([[V_set_iv[0], ph_iv[0]] for i in range(nmbr_channels)])
+            observation_high = np.array([[V_set_iv[1], ph_iv[1]] for i in range(nmbr_channels)])
+
+        elif (type(V_set_iv)==list or type(V_set_iv)==np.ndarray) and
+             (type(wait_iv)==list or type(wait_iv)==np.ndarray) and
+             (type(ph_iv)==list or type(ph_iv)==np.ndarray):
+            assert len(wait_iv)==nmbr_channels,
+                "The list wait_iv must be of length of {}.".format(nmbr_channels)
+            assert len(wait_iv)==nmbr_channels,
+                "The list V_set_iv must be of length of {}.".format(nmbr_channels)
+            assert len(ph_iv)==nmbr_channels,
+                "The list ph_iv must be of length of {}.".format(nmbr_channels)
+
+            action_low  = np.array([[V_set_iv[i][0], wait_iv[i][0]] for i in range(nmbr_channels)])
+            action_high = np.array([[V_set_iv[i][1], wait_iv[i][1]] for i in range(nmbr_channels)])
+            observation_low  = np.array([[V_set_iv[i][0], ph_iv[i][0]] for i in range(nmbr_channels)])
+            observation_high = np.array([[V_set_iv[i][1], ph_iv[i][1]] for i in range(nmbr_channels)])
+
+        else:
+            assert type(V_set_iv)==tuple and type(V_set_iv)==list,
+                "V_set_iv has to be either a tuple or a list/numpy.ndarray."
+            assert type(wait_iv)==tuple,
+                "wait_iv has to be either a tuple or a list/numpy.ndarray."
+            assert type(ph_iv)==tuple,
+                "ph_iv has to be either a tuple or a list/numpy.ndarray."
+
+
+
         # create action and observation spaces
         self.action_space = spaces.Box(low=action_low.reshape(-1),
                                        high=action_high.reshape(-1),
                                        dtype=np.float32)
-        self.observation_space = spaces.Box(low=oberservation_low.reshape(-1),
-                                            high=oberservation_high.reshape(-1),
+        self.observation_space = spaces.Box(low=observation_low.reshape(-1),
+                                            high=observation_high.reshape(-1),
                                             dtype=np.float32)
 
 
@@ -92,12 +127,12 @@ class CryoEnvContinuous_v0(gym.Env):
         self.thermal_link_channels = np.array(thermal_link_channels)
         self.thermal_link_heatbath = np.array(thermal_link_heatbath)
         self.temperature_heatbath = np.array(temperature_heatbath)
-        self.g = g
-        self.T_hyst = T_hyst
-        self.control_pulse_amplitude = control_pulse_amplitude
-        self.env_fluctuations = env_fluctuations
+        self.g = np.array([g for i in range(nmbr_channels)])
+        self.T_hyst = np.array([T_hyst for i in range(nmbr_channels)])
+        self.control_pulse_amplitude = np.array([control_pulse_amplitude for i in range(nmbr_channels)])
+        self.env_fluctuations = np.array([env_fluctuations for i in range(nmbr_channels)])
 
-        self.hysteresis = [False for i in range(nmbr_channels)] # setting if hysteresis is active
+        self.hysteresis = np.array()[False for i in range(nmbr_channels)]) # setting if hysteresis is active
 
 
         # reward parameters
@@ -151,7 +186,7 @@ class CryoEnvContinuous_v0(gym.Env):
         return T.flatten()
 
     def environment_model(self, V_set):
-        return np.random.normal(loc=0, scale=self.env_fluctuations, size=1)
+        return np.random.normal(loc=0, scale=self.env_fluctuations, size=self.nmbr_channels)
 
     def get_pulse_height(self, V_set):
         # get long scale environment fluctuations - we also get short scale fluctuations further down
@@ -175,6 +210,7 @@ class CryoEnvContinuous_v0(gym.Env):
 
         # hysteresis case
         phs[T < self.T_hyst] = self.g
+
 
         # fix to discrete values
         phs = np.floor(phs/self.ph_step)*self.ph_step
@@ -212,10 +248,10 @@ class CryoEnvContinuous_v0(gym.Env):
 
     def step(self, action):
         # unpack action
-        resets, V_decs, wait = self.action_from_discrete(action)
+        # resets, V_decs, wait = self.action_from_discrete(action)
 
         # unpack current state
-        V_sets, phs = self.observation_from_discrete(self.state)
+        # V_sets, phs = self.observation_from_discrete(self.state)
 
         # get the next V sets
         future_V_sets = V_sets - V_decs
