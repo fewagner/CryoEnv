@@ -5,7 +5,6 @@ from gym.utils import seeding
 import numpy as np
 import collections
 import math
-from ._discretization import *
 
 class CryoEnvContinuous_v0(gym.Env):
     """
@@ -226,12 +225,12 @@ class CryoEnvContinuous_v0(gym.Env):
         reward = 0
 
         # unpack action
-        V_decrease, wait = action.reshape((self.nmbr_channels, self.nmbr_actions)).T
+        _, wait = action.reshape((self.nmbr_channels, self.nmbr_actions)).T
 
         # unpack new state
         V_set, ph = new_state.reshape((self.nmbr_channels, self.nmbr_observations)).T
 
-        for r, dv, w, p in zip(reset, V_decrease, V_set, ph):
+        for w, p in zip(V_set, ph):
 
             # one second for sending a control pulse
             reward = - 1
@@ -300,7 +299,7 @@ class CryoEnvContinuous_v0(gym.Env):
     def reset(self):
         future_V_sets = self.V_set_iv[1]*np.ones([self.nmbr_channels], dtype=float)
         future_phs, _, _ = self.get_pulse_height(future_V_sets)
-        self.state = self.observation_to_discrete(V_set=future_V_sets, ph=future_phs)
+        self.state = np.array([future_V_sets, future_phs]).T
         self.hyst = np.full(nmbr_channels, False)
         self.hyst_waited = np.zeros(nmbr_channels)
         self.reset_trajectories()
