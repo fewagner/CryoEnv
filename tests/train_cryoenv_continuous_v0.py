@@ -56,8 +56,8 @@ if __name__ == '__main__':
     train_steps = 1000000
     test_steps = 100
     smoothing = 10000
-    assert train_steps%smoothing == 0, 'smoothing must be divisor of train_steps!'
-    plot_axis = int(train_steps/smoothing)
+    assert train_steps % smoothing == 0, 'smoothing must be divisor of train_steps!'
+    plot_axis = int(train_steps / smoothing)
     training = True
     testing = True
 
