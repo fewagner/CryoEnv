@@ -7,7 +7,7 @@ import collections
 import math
 from ._discretization import *
 
-class CryoEnvDiscrete_v0(gym.Env):
+class CryoEnvContinuous_v0(gym.Env):
     """
     Simplified discrete CryoEnv
 
@@ -30,11 +30,9 @@ class CryoEnvDiscrete_v0(gym.Env):
     metadata = {'render.modes': ['human']}
 
     def __init__(self,
-                 # first action is V_set decrease, second is waiting time
-                 V_set_iv=(0, 99),
-                 V_set_step=1,
+                 V_set_iv=(0., 99.), # first action
+                 wait_iv=(2., 100.), # secound action
                  ph_iv=(0, 0.99),
-                 wait_iv=(2, 100),
                  heater_resistance=np.array([100.]),
                  thermal_link_channels=np.array([[1.]]),
                  thermal_link_heatbath=np.array([1.]),
@@ -45,31 +43,18 @@ class CryoEnvDiscrete_v0(gym.Env):
                  control_pulse_amplitude=10,
                  env_fluctuations=1,
                  save_trajectory=False,
-                 k: np.ndarray = None,
+                 k: np.ndarray = None, # logistic curve parameters
                  T0: np.ndarray = None,
                  ):
 
         # input handling
         self.V_set_iv = V_set_iv
-        self.V_set_step = V_set_step
         self.ph_iv = ph_iv
-        self.ph_step = ph_step
         self.wait_iv = wait_iv
-        self.wait_step = wait_step
         self.k = k
         self.T0 = T0
-        nmbr_discrete_V = (V_set_iv[1] - V_set_iv[0]) / V_set_step + 1
-        assert nmbr_discrete_V == np.floor(nmbr_discrete_V), 'nmbr_discrete_V must be whole number.'
-        nmbr_discrete_V = int(nmbr_discrete_V)
-        nmbr_discrete_ph = (ph_iv[1] - ph_iv[0]) / ph_step + 1
-        assert nmbr_discrete_ph == np.floor(nmbr_discrete_ph), 'nmbr_discrete_ph must be whole number.'
-        nmbr_discrete_ph = int(nmbr_discrete_ph)
-        nmbr_discrete_wait = (wait_iv[1] - wait_iv[0]) / wait_step + 1
-        assert nmbr_discrete_wait == np.floor(nmbr_discrete_wait), 'nmbr_discrete_wait must be whole number.'
-        nmbr_discrete_wait = int(nmbr_discrete_wait)
-        print('Nmbr discrete V: ', nmbr_discrete_V)
-        print('Nmbr discrete PH: ', nmbr_discrete_ph)
-        print('Nmbr discrete Wait: ', nmbr_discrete_wait)
+
+
 
         self.nmbr_channels = len(heater_resistance)
         assert k is None or len(k) == self.nmbr_channels, 'If k is set, it must have length nmbr_channels!'
@@ -86,10 +71,11 @@ class CryoEnvDiscrete_v0(gym.Env):
         assert len(
             thermal_link_heatbath) == self.nmbr_channels, "thermal_link_heatbath must have same length as heater_resistance!"
 
+        V_set_iv=(0, 99), # first action
+        wait_iv=(2, 100), # secound action
 
-
-        action_low=np.array([[0., 1.]]),
-        action_high=np.array([[100., 100.]]),
+        action_low=np.array([[V_set_iv[0], wait_iv[0]]]),
+        action_high=np.array([[V_set_iv[1], wait_iv[1]]]),
 
         # self.action_space = spaces.Discrete(n_action_max)
         # create action and observation spaces
@@ -110,6 +96,9 @@ class CryoEnvDiscrete_v0(gym.Env):
         self.T_hyst = T_hyst
         self.control_pulse_amplitude = control_pulse_amplitude
         self.env_fluctuations = env_fluctuations
+
+        self.hysteresis = [False for i in range(nmbr_channels)] # setting if hysteresis is active
+
 
         # reward parameters
         self.min_ph = min_ph
@@ -151,24 +140,6 @@ class CryoEnvDiscrete_v0(gym.Env):
         self.T_trajectory = []
         self.T_inj_trajectory = []
 
-    def action_to_discrete(self, reset: np.ndarray, V_decrease: np.ndarray, wait: np.ndarray):
-        return action_to_discrete(reset, V_decrease, wait,
-                                  wait_iv=self.wait_iv, V_iv=self.V_set_iv,
-                                  wait_step=self.wait_step, V_step=self.V_set_step)
-
-    def action_from_discrete(self, n: np.ndarray):
-        return action_from_discrete(n, self.nmbr_channels,
-                                    wait_iv=self.wait_iv, V_iv=self.V_set_iv,
-                                    wait_step=self.wait_step, V_step=self.V_set_step)
-
-    def observation_to_discrete(self, V_set: np.ndarray, ph: np.ndarray):
-        return observation_to_discrete(V_set, ph,
-                                       V_iv=self.V_set_iv, ph_iv=self.ph_iv,
-                                       V_step=self.V_set_step, ph_step=self.ph_step)
-
-    def observation_from_discrete(self, n: np.ndarray):
-        return observation_from_discrete(n, self.nmbr_channels, self.V_set_iv,
-                                         ph_iv=self.ph_iv, V_step=self.V_set_step, ph_step=self.ph_step)
 
     def sensor_model(self, T, k, T0):
         return 1 / (1 + np.exp(-k * (T - T0)))
