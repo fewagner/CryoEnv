@@ -66,7 +66,7 @@ if __name__ == '__main__':
         'g': np.array([0.0001]),
         'T_hyst': np.array([0.1]),
         'T_hyst_reset': np.array([0.9]),
-        'T_hyst': np.array([0.001]),
+        'hyst_wait': np.array([50]),
         'control_pulse_amplitude': 50,
         'env_fluctuations': 0.005,
         'model_pileup_drops': True,
@@ -90,7 +90,7 @@ if __name__ == '__main__':
     # ------------------------------------------------
 
     nmbr_agents = 1
-    train_steps = 100000
+    train_steps = 1000
     test_steps = 100
     smoothing = int(train_steps/500)
     assert train_steps % smoothing == 0, 'smoothing must be divisor of train_steps!'

@@ -25,6 +25,7 @@ env_kwargs = {
     'g': np.array([0.0001]),
     'T_hyst': np.array([0.1]),
     'T_hyst_reset': np.array([0.9]),
+    'hyst_wait': np.array([50]),
     'control_pulse_amplitude': 50,
     'env_fluctuations': 0.005,
     'model_pileup_drops': False,
