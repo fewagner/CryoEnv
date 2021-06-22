@@ -43,6 +43,9 @@ for amp in CONTROL_PULSE_AMPLITUDES:
                    **env_kwargs,
                    )
 
+    obs = env.reset()
+    print("Exemplary State {}".format(obs))
+
     # print('Check Environment.')
     check_env(env)
 
@@ -52,8 +55,8 @@ for amp in CONTROL_PULSE_AMPLITUDES:
     for v_s in np.arange(env_kwargs['V_set_iv'][1],
                          env_kwargs['V_set_iv'][0] - env_kwargs['V_set_step'],
                          - env_kwargs['V_set_step']):
-        print(f'V_set: {v_s}')
         action = np.array([[v_s, ], [10, ]]).T  # wait = 10
+        # print(f'action: {action}')
         new_state, _, _, _ = env.step(action=action)
         count += 1
 

@@ -6,6 +6,7 @@ import numpy as np
 import collections
 import math
 
+
 class CryoEnvContinuous_v0(gym.Env):
     """
     Simplified continuous CryoEnv
@@ -29,22 +30,22 @@ class CryoEnvContinuous_v0(gym.Env):
     metadata = {'render.modes': ['human']}
 
     def __init__(self,
-                 V_set_iv=(0., 99.), # first action
-                 wait_iv=(2., 100.), # secound action
+                 V_set_iv=(0., 99.),  # first action
+                 wait_iv=(2., 100.),  # secound action
                  ph_iv=(0., 0.99),
                  heater_resistance=np.array([100.]),
                  thermal_link_channels=np.array([[1.]]),
                  thermal_link_heatbath=np.array([1.]),
                  temperature_heatbath=0.,
                  min_ph=0.2,
-                 g=np.array([0.001]), # offset from 0
+                 g=np.array([0.001]),  # offset from 0
                  T_hyst=np.array([0.001]),
                  T_hyst_reset=np.array([0.99]),
                  hyst_wait=np.array([50]),
                  control_pulse_amplitude=10,
                  env_fluctuations=1,
                  save_trajectory=False,
-                 k: np.ndarray = None, # logistic curve parameters
+                 k: np.ndarray = None,  # logistic curve parameters
                  T0: np.ndarray = None,
                  **kwargs,
                  ):
@@ -56,64 +57,59 @@ class CryoEnvContinuous_v0(gym.Env):
         self.k = k
         self.T0 = T0
 
-
         self.nmbr_channels = len(heater_resistance)
-        assert k is None or len(k) == self.nmbr_channels,\
+        assert k is None or len(k) == self.nmbr_channels, \
             'If k is set, it must have length nmbr_channels!'
-        assert T0 is None or len(T0) == self.nmbr_channels,\
+        assert T0 is None or len(T0) == self.nmbr_channels, \
             'If T0 is set, it must have length nmbr_channels!'
 
         assert thermal_link_channels.shape == (
             self.nmbr_channels,
-            self.nmbr_channels),\
+            self.nmbr_channels), \
             "thermal_link_channels must have shape (nmbr_channels, nmbr_channels)!"
-        assert len(thermal_link_heatbath) == self.nmbr_channels,\
+        assert len(thermal_link_heatbath) == self.nmbr_channels, \
             "thermal_link_heatbath must have same length as heater_resistance!"
 
-        self.nmbr_actions = 2 # will change later
-        self.nmbr_observations = 2 # will change later
+        self.nmbr_actions = 2  # will change later
+        self.nmbr_observations = 2  # will change later
 
         if type(V_set_iv) is tuple:
-            assert len(V_set_iv)==2,\
+            assert len(V_set_iv) == 2, \
                 "The tuple of V_set_iv must be of length {}.".format(2)
             self.V_set_iv = np.array([V_set_iv for i in range(self.nmbr_channels)])
         elif type(V_set_iv) is list or type(V_set_iv) is np.ndarray:
-            assert len(V_set_iv)==self.nmbr_channels,\
+            assert len(V_set_iv) == self.nmbr_channels, \
                 "The list V_set_iv must be of length of {}.".format(self.nmbr_channels)
             self.V_set_iv = V_set_iv
         else:
             raise ValueError("V_set_iv has to be either a tuple or a list/numpy.ndarray.")
 
-
         if type(wait_iv) is tuple:
-            assert len(wait_iv)==2,\
+            assert len(wait_iv) == 2, \
                 "The tuple of wait_iv must be of length {}.".format(2)
             self.wait_iv = np.array([wait_iv for i in range(self.nmbr_channels)])
         elif type(wait_iv) is list or type(wait_iv) is np.ndarray:
-            assert len(wait_iv)==self.nmbr_channels,\
+            assert len(wait_iv) == self.nmbr_channels, \
                 "The list wait_iv must be of length of {}.".format(self.nmbr_channels)
             self.wait_iv = wait_iv
         else:
             raise ValueError("wait_iv has to be either a tuple or a list/numpy.ndarray.")
 
-
         if type(ph_iv) is tuple:
-            assert len(ph_iv)==2,\
+            assert len(ph_iv) == 2, \
                 "The tuple of ph_iv must be of length {}.".format(2)
             self.ph_iv = np.array([ph_iv for i in range(self.nmbr_channels)])
         elif type(ph_iv) is list or type(ph_iv) is np.ndarray:
-            assert len(ph_iv)==self.nmbr_channels,\
+            assert len(ph_iv) == self.nmbr_channels, \
                 "The list ph_iv must be of length of {}.".format(self.nmbr_channels)
             self.ph_iv = ph_iv
         else:
             raise ValueError("ph_iv has to be either a tuple or a list/numpy.ndarray.")
 
-
-        action_low  = np.array([[self.V_set_iv[i][0], self.wait_iv[i][0]] for i in range(self.nmbr_channels)])
+        action_low = np.array([[self.V_set_iv[i][0], self.wait_iv[i][0]] for i in range(self.nmbr_channels)])
         action_high = np.array([[self.V_set_iv[i][1], self.wait_iv[i][1]] for i in range(self.nmbr_channels)])
-        observation_low  = np.array([[self.V_set_iv[i][0], self.ph_iv[i][0]] for i in range(self.nmbr_channels)])
+        observation_low = np.array([[self.V_set_iv[i][0], self.ph_iv[i][0]] for i in range(self.nmbr_channels)])
         observation_high = np.array([[self.V_set_iv[i][1], self.ph_iv[i][1]] for i in range(self.nmbr_channels)])
-
 
         # create action and observation spaces
         self.action_space = spaces.Box(low=action_low.reshape(-1),
@@ -136,11 +132,10 @@ class CryoEnvContinuous_v0(gym.Env):
         self.control_pulse_amplitude = np.full(self.nmbr_channels, control_pulse_amplitude)
         self.env_fluctuations = np.full(self.nmbr_channels, env_fluctuations)
         self.T = np.zeros(self.nmbr_channels)
-        self.hyst = np.full(self.nmbr_channels, False) # setting if hysteresis is active
+        self.hyst = np.full(self.nmbr_channels, False)  # setting if hysteresis is active
         self.hyst_waited = np.zeros(self.nmbr_channels)
         self.T_hyst_reset = np.full(self.nmbr_channels, T_hyst_reset)
         self.hyst_wait = np.full(self.nmbr_channels, hyst_wait)
-
 
         # reward parameters
         self.min_ph = min_ph
@@ -182,7 +177,6 @@ class CryoEnvContinuous_v0(gym.Env):
         self.new_ph_trajectory = []
         self.T_trajectory = []
         self.T_inj_trajectory = []
-
 
     def sensor_model(self, T, k, T0):
         return 1 / (1 + np.exp(-k * (T - T0)))
@@ -232,10 +226,10 @@ class CryoEnvContinuous_v0(gym.Env):
         # unpack new state
         V_set, ph = new_state.reshape((self.nmbr_channels, self.nmbr_observations)).T
 
-        for w, p in zip(V_set, ph):
+        for w, p in zip(wait, ph):
 
             # one second for sending a control pulse
-            reward = - 1
+            reward -= 1
 
             # check stability
             stable = p > self.min_ph
@@ -243,9 +237,9 @@ class CryoEnvContinuous_v0(gym.Env):
             # print(r, dv, w, v, p)
 
             if stable:
-                reward += wait
+                reward += w
             else:
-                reward -= wait
+                reward -= w
 
         return reward
 
@@ -257,17 +251,17 @@ class CryoEnvContinuous_v0(gym.Env):
         V_sets, phs = self.state.reshape((self.nmbr_channels, self.nmbr_observations)).T
 
         # get the next V sets
-        future_V_sets[future_V_sets < self.V_set_iv[:,0]] = self.V_set_iv[future_V_sets < self.V_set_iv[:,0]][0]
+        if any(future_V_sets < self.V_set_iv[:, 0]):
+            future_V_sets[future_V_sets < self.V_set_iv[:, 0]] = self.V_set_iv[future_V_sets < self.V_set_iv[:, 0]][0]
         # future_V_sets[resets] = self.V_set_iv[resets][1]
 
-        self.T = self.temperature_model(P_R = V_set / self.heater_resistance,P_E=0)
+        self.T = self.temperature_model(P_R=future_V_sets / self.heater_resistance, P_E=0)
         self.hyst_waited += wait
         self.hyst = np.logical_and(
-                        np.logical_or(self.T < self.T_hyst, self.hyst),
-                        self.hyst_waited < self.hyst_wait
-                    )
+            np.logical_or(self.T < self.T_hyst, self.hyst),
+            self.hyst_waited < self.hyst_wait
+        )
         self.hyst_waited[self.hyst] = np.zeros(self.hyst_waited[self.hyst].shape)
-
 
         # get the next phs
         future_phs, future_T, future_T_inj = self.get_pulse_height(future_V_sets)
@@ -312,7 +306,7 @@ class CryoEnvContinuous_v0(gym.Env):
         return np.array(self.rewards_trajectory), \
                np.array(self.V_decrease_trajectory), \
                np.array(self.wait_trajectory), \
-               np.array(self.reset_trajectory),\
+               np.array(self.reset_trajectory), \
                np.array(self.new_V_set_trajectory), \
                np.array(self.new_ph_trajectory), \
                np.array(self.T_trajectory), \
