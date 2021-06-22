@@ -12,10 +12,12 @@ warnings.simplefilter('ignore')
 np.random.seed(0)
 gym.logger.set_level(40)
 
+
 class ProgressBarCallback(BaseCallback):
     """
     :param pbar: (tqdm.pbar) Progress bar object
     """
+
     def __init__(self, pbar):
         super(ProgressBarCallback, self).__init__()
         self._pbar = pbar
@@ -42,6 +44,7 @@ class ProgressBarManager(object):
         self.pbar.update(0)
         self.pbar.close()
 
+
 if __name__ == '__main__':
     # ------------------------------------------------
     # CREATE THE ENVIRONMENT
@@ -61,9 +64,14 @@ if __name__ == '__main__':
         'temperature_heatbath': 0.,
         'min_ph': 0.1,
         'g': np.array([0.0001]),
+        'T_hyst': np.array([0.1]),
+        'T_hyst_reset': np.array([0.9]),
         'T_hyst': np.array([0.001]),
         'control_pulse_amplitude': 50,
         'env_fluctuations': 0.005,
+        'model_pileup_drops': True,
+        'prob_drop': np.array([1e-3]),  # per second!
+        'prob_pileup': np.array([0.1]),
         'save_trajectory': True,
         'k': np.array([15]),
         'T0': np.array([0.5]),
@@ -77,17 +85,14 @@ if __name__ == '__main__':
     # print('Check Environment.')
     check_env(env)
 
-    print("Action Space {}".format(env.action_space))
-    print("State Space {}".format(env.observation_space))
-
     # ------------------------------------------------
     # DEFINE AGENT PARAMETERS
     # ------------------------------------------------
 
     nmbr_agents = 1
-    train_steps = 1000000
+    train_steps = 100000
     test_steps = 100
-    smoothing = 10000
+    smoothing = int(train_steps/500)
     assert train_steps % smoothing == 0, 'smoothing must be divisor of train_steps!'
     plot_axis = int(train_steps / smoothing)
     training = True
@@ -109,7 +114,7 @@ if __name__ == '__main__':
                 model.learn(total_timesteps=train_steps, callback=callback)
             if agent == 0:
                 model.save("model_continuous")
-            rew, _, _, _, _, _, _, _,  = env.get_trajectory()
+            rew, _, _, _, _, _, _, _, = env.get_trajectory()
             training_rewards[agent, :] = np.mean(rew.reshape(-1, smoothing), axis=1)
             env.reset()
             del model
@@ -121,9 +126,9 @@ if __name__ == '__main__':
         print('Plots...')
         fig, host = plt.subplots(figsize=(8, 5))
 
-        x = range(plot_axis)
+        x = np.arange(plot_axis)*smoothing
 
-        host.set_xlabel("Episode")
+        host.set_xlabel("Environment Steps")
         host.set_ylabel("Average Reward")
 
         color1 = 'green'
@@ -192,6 +197,6 @@ if __name__ == '__main__':
 
         fig.tight_layout()
 
-        # plt.title('Trajectories')
+        plt.title('CryoEnvContinuous v0: Test Trajectories')
 
         plt.show()

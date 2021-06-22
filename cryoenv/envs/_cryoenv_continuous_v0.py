@@ -39,11 +39,14 @@ class CryoEnvContinuous_v0(gym.Env):
                  temperature_heatbath=0.,
                  min_ph=0.2,
                  g=np.array([0.001]),  # offset from 0
-                 T_hyst=np.array([0.001]),
-                 T_hyst_reset=np.array([0.99]),
+                 T_hyst=np.array([0.1]),
+                 T_hyst_reset=np.array([0.9]),
                  hyst_wait=np.array([50]),
                  control_pulse_amplitude=10,
                  env_fluctuations=1,
+                 model_pileup_drops = True,
+                 prob_drop=np.array([1e-3]),  # per second!
+                 prob_pileup=np.array([0.1]),
                  save_trajectory=False,
                  k: np.ndarray = None,  # logistic curve parameters
                  T0: np.ndarray = None,
@@ -56,6 +59,9 @@ class CryoEnvContinuous_v0(gym.Env):
         self.wait_iv = wait_iv
         self.k = k
         self.T0 = T0
+        self.prob_drop = prob_drop  # TODO for these we need input checks!
+        self.prob_pileup = prob_pileup  # TODO for these we need input checks!
+        self.model_pileup_drops = model_pileup_drops
 
         self.nmbr_channels = len(heater_resistance)
         assert k is None or len(k) == self.nmbr_channels, \
@@ -106,21 +112,25 @@ class CryoEnvContinuous_v0(gym.Env):
         else:
             raise ValueError("ph_iv has to be either a tuple or a list/numpy.ndarray.")
 
-        action_low = np.array([[self.V_set_iv[i][0], self.wait_iv[i][0]] for i in range(self.nmbr_channels)])
-        action_high = np.array([[self.V_set_iv[i][1], self.wait_iv[i][1]] for i in range(self.nmbr_channels)])
-        observation_low = np.array([[self.V_set_iv[i][0], self.ph_iv[i][0]] for i in range(self.nmbr_channels)])
-        observation_high = np.array([[self.V_set_iv[i][1], self.ph_iv[i][1]] for i in range(self.nmbr_channels)])
+        # action_low = np.array([[self.V_set_iv[i][0], self.wait_iv[i][0]] for i in range(self.nmbr_channels)])
+        # action_high = np.array([[self.V_set_iv[i][1], self.wait_iv[i][1]] for i in range(self.nmbr_channels)])
+        # observation_low = np.array([[self.V_set_iv[i][0], self.ph_iv[i][0]] for i in range(self.nmbr_channels)])
+        # observation_high = np.array([[self.V_set_iv[i][1], self.ph_iv[i][1]] for i in range(self.nmbr_channels)])
+        #
+        # # create action and observation spaces
+        # self.action_space = spaces.Box(low=action_low.reshape(-1),
+        #                                high=action_high.reshape(-1),
+        #                                dtype=np.float32)
+        # self.observation_space = spaces.Box(low=observation_low.reshape(-1),
+        #                                     high=observation_high.reshape(-1),
+        #                                     dtype=np.float32)
 
-        # create action and observation spaces
-        self.action_space = spaces.Box(low=action_low.reshape(-1),
-                                       high=action_high.reshape(-1),
+        self.action_space = spaces.Box(low=- np.ones(2 * self.nmbr_channels),
+                                       high=np.ones(2 * self.nmbr_channels),
                                        dtype=np.float32)
-        self.observation_space = spaces.Box(low=observation_low.reshape(-1),
-                                            high=observation_high.reshape(-1),
+        self.observation_space = spaces.Box(low=- np.ones(2 * self.nmbr_channels),
+                                            high=np.ones(2 * self.nmbr_channels),
                                             dtype=np.float32)
-
-        # print("observation_low:", observation_low.shape , observation_low)
-        # print("observation_high:", observation_high.shape , observation_high)
 
         # environment parameters
         self.heater_resistance = np.array(heater_resistance)
@@ -162,7 +172,7 @@ class CryoEnvContinuous_v0(gym.Env):
             self.T0 = T0
 
         # initial state
-        self.state = self.reset()
+        self.state = self.denorm_state(self.reset())
 
         # render
         self.save_trajectory = save_trajectory
@@ -203,15 +213,19 @@ class CryoEnvContinuous_v0(gym.Env):
         # height with signal
         P_R_inj = np.sqrt(V_set ** 2 + self.control_pulse_amplitude ** 2) / \
                   self.heater_resistance  # P...power; voltage goes through square rooter
+        pile_up = np.zeros(self.nmbr_channels)
+        if self.model_pileup_drops:
+            piled_up = np.random.uniform(size=self.nmbr_channels) < self.prob_pileup
+            pile_up[piled_up] = np.random.exponential(size=np.sum(piled_up),
+                                                      scale=self.env_fluctuations*40)
         T_inj = self.temperature_model(P_R=P_R_inj,
-                                       P_E=self.environment_model(V_set) + P_E_long)
+                                       P_E=self.environment_model(V_set) + P_E_long + pile_up)
         height_signal = self.sensor_model(T_inj, self.k, self.T0)
 
         # difference is pulse height
         phs = np.maximum(height_signal - height_baseline, self.g)
 
         # hysteresis case
-
         phs[self.hyst] = self.g[self.hyst]
 
         return phs, T, T_inj
@@ -237,13 +251,44 @@ class CryoEnvContinuous_v0(gym.Env):
             # print(r, dv, w, v, p)
 
             if stable:
-                reward += w
+                reward += p*w
             else:
                 reward -= w
 
         return reward
 
+    def norm_action(self, action):
+        normed_action = np.copy(action)
+        normed_action[0::2] = 2 * (normed_action[0::2] - self.V_set_iv[:, 0]) / self.V_set_iv[:,
+                                                                                1] - 1  # norm the v sets
+        normed_action[1::2] = 2 * (normed_action[1::2] - self.wait_iv[:, 0]) / self.wait_iv[:, 1] - 1  # norm the waits
+        return normed_action
+
+    def denorm_action(self, normed_action):
+        action = np.copy(normed_action)
+        action[0::2] = self.V_set_iv[:, 1] * (1 + action[0::2]) / 2 + self.V_set_iv[:, 0]  # denorm the v sets
+        action[1::2] = self.wait_iv[:, 1] * (1 + action[1::2]) / 2 + self.wait_iv[:, 0]  # denorm the waits
+        return action
+
+    def norm_state(self, state):
+        normed_state = np.copy(state)
+        normed_state[0::2] = 2 * (normed_state[0::2] - self.V_set_iv[:, 0]) / self.V_set_iv[:, 1] - 1  # norm the v sets
+        normed_state[1::2] = 2 * (normed_state[1::2] - self.ph_iv[:, 0]) / self.ph_iv[:, 1] - 1  # norm the phs
+        return normed_state
+
+    def denorm_state(self, normed_state):
+        state = np.copy(normed_state)
+        state[0::2] = self.V_set_iv[:, 1] * (1 + state[0::2]) / 2 + self.V_set_iv[:, 0]  # denorm the v sets
+        state[1::2] = self.ph_iv[:, 1] * (1 + state[1::2]) / 2 + self.ph_iv[:, 0]  # denorm the phs
+        return state
+
     def step(self, action):
+        denormed_action = self.denorm_action(action)
+        new_state, reward, done, info = self._step(denormed_action)
+        normed_new_state = self.norm_state(new_state)
+        return normed_new_state, reward, done, info
+
+    def _step(self, action):
         # unpack action
         future_V_sets, wait = action.reshape((self.nmbr_channels, self.nmbr_actions)).T
 
@@ -253,15 +298,18 @@ class CryoEnvContinuous_v0(gym.Env):
         # get the next V sets
         if any(future_V_sets < self.V_set_iv[:, 0]):
             future_V_sets[future_V_sets < self.V_set_iv[:, 0]] = self.V_set_iv[future_V_sets < self.V_set_iv[:, 0]][0]
-        # future_V_sets[resets] = self.V_set_iv[resets][1]
 
+        # hysteresis handling
         self.T = self.temperature_model(P_R=future_V_sets / self.heater_resistance, P_E=0)
-        self.hyst_waited += wait
-        self.hyst = np.logical_and(
-            np.logical_or(self.T < self.T_hyst, self.hyst),
-            self.hyst_waited < self.hyst_wait
-        )
-        self.hyst_waited[self.hyst] = np.zeros(self.hyst_waited[self.hyst].shape)
+        self.hyst_waited[self.T > self.T_hyst_reset] += wait
+        self.hyst[self.hyst_waited > self.hyst_wait] = False
+        self.hyst[self.T < self.T_hyst] = True
+        self.hyst_waited[self.T < self.T_hyst] = 0
+        if self.model_pileup_drops:  # drops due to rare, unexpected vibrations, etc
+            drop_probabilities = np.array([np.sum([p * (1 - p) ** i for i in range(int(wait[c]))]) for c,p in enumerate(self.prob_drop)])
+            dropped = np.random.uniform(size=self.nmbr_channels) < drop_probabilities
+            self.hyst[dropped] = True
+            self.hyst_waited[dropped] = True
 
         # get the next phs
         future_phs, future_T, future_T_inj = self.get_pulse_height(future_V_sets)
@@ -294,13 +342,13 @@ class CryoEnvContinuous_v0(gym.Env):
         return new_state, reward, done, info
 
     def reset(self):
-        future_V_sets = self.V_set_iv[:, 1]  # *np.ones([self.nmbr_channels], dtype=float)
+        future_V_sets = self.V_set_iv[:, 1]
         future_phs, _, _ = self.get_pulse_height(future_V_sets)
         self.state = np.array([future_V_sets, future_phs]).T.reshape(-1)
         self.hyst = np.full(self.nmbr_channels, False)
         self.hyst_waited = np.zeros(self.nmbr_channels)
         self.reset_trajectories()
-        return self.state
+        return self.norm_state(self.state)
 
     def get_trajectory(self):
         return np.array(self.rewards_trajectory), \

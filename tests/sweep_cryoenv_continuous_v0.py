@@ -23,9 +23,13 @@ env_kwargs = {
     'temperature_heatbath': 0.,
     'min_ph': 0.1,
     'g': np.array([0.0001]),
-    'T_hyst': np.array([0.001]),
+    'T_hyst': np.array([0.1]),
+    'T_hyst_reset': np.array([0.9]),
     'control_pulse_amplitude': 50,
     'env_fluctuations': 0.005,
+    'model_pileup_drops': False,
+    'prob_drop': np.array([1e-3]),  # per second!
+    'prob_pileup': np.array([0.2]),
     'save_trajectory': True,
     'k': np.array([15]),
     'T0': np.array([0.5]),
@@ -45,6 +49,7 @@ for amp in CONTROL_PULSE_AMPLITUDES:
 
     obs = env.reset()
     print("Exemplary State {}".format(obs))
+    print("Exemplary State denormed {}".format(env.denorm_state(obs)))
 
     # print('Check Environment.')
     check_env(env)
@@ -57,7 +62,7 @@ for amp in CONTROL_PULSE_AMPLITUDES:
                          - env_kwargs['V_set_step']):
         action = np.array([[v_s, ], [10, ]]).T  # wait = 10
         # print(f'action: {action}')
-        new_state, _, _, _ = env.step(action=action)
+        new_state, _, _, _ = env._step(action=action)
         count += 1
 
     trajectories.append(env.get_trajectory())
@@ -73,7 +78,7 @@ plt.axvline(x=1, color='black')
 plt.title('Sensor model')
 plt.xlabel('Simplified Temperature (a.u.)')
 plt.ylabel('Simplified Resistance (a.u.)')
-plt.savefig(fname='sensor.pdf')
+plt.savefig(fname='results/sensor.pdf')
 plt.show()
 
 ####
@@ -122,6 +127,6 @@ par2.yaxis.label.set_color(p3.get_color())
 
 fig.tight_layout()
 
-plt.savefig(fname='sweep.pdf')
+plt.savefig(fname='results/sweep_cont.pdf')
 
 plt.show()
