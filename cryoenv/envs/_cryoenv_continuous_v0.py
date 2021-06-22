@@ -112,7 +112,7 @@ class CryoEnvContinuous_v0(gym.Env):
         action_low  = np.array([[self.V_set_iv[i][0], self.wait_iv[i][0]] for i in range(self.nmbr_channels)])
         action_high = np.array([[self.V_set_iv[i][1], self.wait_iv[i][1]] for i in range(self.nmbr_channels)])
         observation_low  = np.array([[self.V_set_iv[i][0], self.ph_iv[i][0]] for i in range(self.nmbr_channels)])
-        observation_high = np.array([[self.V_set_iv[i][0], self.ph_iv[i][0]] for i in range(self.nmbr_channels)])
+        observation_high = np.array([[self.V_set_iv[i][1], self.ph_iv[i][1]] for i in range(self.nmbr_channels)])
 
 
         # create action and observation spaces
@@ -123,6 +123,8 @@ class CryoEnvContinuous_v0(gym.Env):
                                             high=observation_high.reshape(-1),
                                             dtype=np.float32)
 
+        # print("observation_low:", observation_low.shape , observation_low)
+        # print("observation_high:", observation_high.shape , observation_high)
 
         # environment parameters
         self.heater_resistance = np.array(heater_resistance)
@@ -252,10 +254,10 @@ class CryoEnvContinuous_v0(gym.Env):
         future_V_sets, wait = action.reshape((self.nmbr_channels, self.nmbr_actions)).T
 
         # unpack current state
-        V_sets, phs = self.state
+        V_sets, phs = self.state.reshape((self.nmbr_channels, self.nmbr_observations)).T
 
         # get the next V sets
-        future_V_sets[future_V_sets < self.V_set_iv[0]] = self.V_set_iv[future_V_sets < self.V_set_iv[0]][0]
+        future_V_sets[future_V_sets < self.V_set_iv[:,0]] = self.V_set_iv[future_V_sets < self.V_set_iv[:,0]][0]
         # future_V_sets[resets] = self.V_set_iv[resets][1]
 
         self.T = self.temperature_model(P_R = V_set / self.heater_resistance,P_E=0)
