@@ -3,12 +3,44 @@ import matplotlib.pyplot as plt
 import numpy as np
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3 import A2C, SAC
+from tqdm.auto import tqdm
+from stable_baselines3.common.callbacks import BaseCallback
 
 import warnings
 
 warnings.simplefilter('ignore')
 np.random.seed(0)
 gym.logger.set_level(40)
+
+class ProgressBarCallback(BaseCallback):
+    """
+    :param pbar: (tqdm.pbar) Progress bar object
+    """
+    def __init__(self, pbar):
+        super(ProgressBarCallback, self).__init__()
+        self._pbar = pbar
+
+    def _on_step(self):
+        # Update the progress bar:
+        self._pbar.n = self.num_timesteps
+        self._pbar.update(0)
+
+
+# this callback uses the 'with' block, allowing for correct initialisation and destruction
+class ProgressBarManager(object):
+    def __init__(self, total_timesteps):  # init object with total timesteps
+        self.pbar = None
+        self.total_timesteps = total_timesteps
+
+    def __enter__(self):  # create the progress bar and callback, return the callback
+        self.pbar = tqdm(total=self.total_timesteps)
+
+        return ProgressBarCallback(self.pbar)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):  # close the callback
+        self.pbar.n = self.total_timesteps
+        self.pbar.update(0)
+        self.pbar.close()
 
 if __name__ == '__main__':
     # ------------------------------------------------
@@ -52,7 +84,7 @@ if __name__ == '__main__':
     # DEFINE AGENT PARAMETERS
     # ------------------------------------------------
 
-    nmbr_agents = 2
+    nmbr_agents = 1
     train_steps = 1000000
     test_steps = 100
     smoothing = 10000
@@ -73,11 +105,12 @@ if __name__ == '__main__':
         for agent in range(nmbr_agents):
             print('Learn Agent {}:'.format(agent))
             model = A2C("MlpPolicy", env, verbose=False)
-            model.learn(total_timesteps=train_steps)
+            with ProgressBarManager(train_steps) as callback:
+                model.learn(total_timesteps=train_steps, callback=callback)
             if agent == 0:
                 model.save("model_continuous")
-            rew, _ = env.get_trajectory()
-            training_rewards[agent, :], _ = np.mean(rew.reshape(-1, smoothing), axis=1)
+            rew, _, _, _, _, _, _, _,  = env.get_trajectory()
+            training_rewards[agent, :] = np.mean(rew.reshape(-1, smoothing), axis=1)
             env.reset()
             del model
 
@@ -159,6 +192,6 @@ if __name__ == '__main__':
 
         fig.tight_layout()
 
-        plt.title('Trajectories Agent {} Episode {}'.format(ag, ep))
+        # plt.title('Trajectories')
 
         plt.show()
