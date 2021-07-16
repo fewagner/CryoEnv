@@ -91,7 +91,7 @@ if __name__ == '__main__':
     # ------------------------------------------------
 
     nmbr_agents = 1
-    train_steps = 10000
+    train_steps = 100000
     test_steps = 100
     smoothing = int(train_steps/500)
     assert train_steps % smoothing == 0, 'smoothing must be divisor of train_steps!'
@@ -111,7 +111,7 @@ if __name__ == '__main__':
         print('Training...')
         for agent in range(nmbr_agents):
             print('Learn Agent {}:'.format(agent))
-            model = A2C("MlpPolicy", env, verbose=False)
+            model = A2C("MlpPolicy", env, verbose=False, gamma=0.6)
             with ProgressBarManager(train_steps) as callback:
                 model.learn(total_timesteps=train_steps, callback=callback)
             if agent == 0:
