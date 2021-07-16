@@ -44,12 +44,13 @@ class CryoEnvContinuous_v0(gym.Env):
                  hyst_wait=np.array([50]),
                  control_pulse_amplitude=10,
                  env_fluctuations=1,
-                 model_pileup_drops = True,
+                 model_pileup_drops=True,
                  prob_drop=np.array([1e-3]),  # per second!
                  prob_pileup=np.array([0.1]),
                  save_trajectory=False,
                  k: np.ndarray = None,  # logistic curve parameters
                  T0: np.ndarray = None,
+                 incentive_reset=0,
                  **kwargs,
                  ):
 
@@ -146,6 +147,7 @@ class CryoEnvContinuous_v0(gym.Env):
         self.hyst_waited = np.zeros(self.nmbr_channels)
         self.T_hyst_reset = np.full(self.nmbr_channels, T_hyst_reset)
         self.hyst_wait = np.full(self.nmbr_channels, hyst_wait)
+        self.incentive_reset = incentive_reset
 
         # reward parameters
         self.min_ph = min_ph
@@ -217,7 +219,7 @@ class CryoEnvContinuous_v0(gym.Env):
         if self.model_pileup_drops:
             piled_up = np.random.uniform(size=self.nmbr_channels) < self.prob_pileup
             pile_up[piled_up] = np.random.exponential(size=np.sum(piled_up),
-                                                      scale=self.env_fluctuations*40)
+                                                      scale=self.env_fluctuations * 40)
         T_inj = self.temperature_model(P_R=P_R_inj,
                                        P_E=self.environment_model(V_set) + P_E_long + pile_up)
         height_signal = self.sensor_model(T_inj, self.k, self.T0)
@@ -240,7 +242,7 @@ class CryoEnvContinuous_v0(gym.Env):
         # unpack new state
         V_set, ph = new_state.reshape((self.nmbr_channels, self.nmbr_observations)).T
 
-        for w, p in zip(wait, ph):
+        for w, p, v in zip(wait, ph, V_set):
 
             # one second for sending a control pulse
             reward -= 1
@@ -251,9 +253,11 @@ class CryoEnvContinuous_v0(gym.Env):
             # print(r, dv, w, v, p)
 
             if stable:
-                reward += p*w
+                reward += p * w
             else:
                 reward -= w
+
+            reward += self.incentive_reset * v
 
         return reward
 
@@ -306,7 +310,8 @@ class CryoEnvContinuous_v0(gym.Env):
         self.hyst[self.T < self.T_hyst] = True
         self.hyst_waited[self.T < self.T_hyst] = 0
         if self.model_pileup_drops:  # drops due to rare, unexpected vibrations, etc
-            drop_probabilities = np.array([np.sum([p * (1 - p) ** i for i in range(int(wait[c]))]) for c,p in enumerate(self.prob_drop)])
+            drop_probabilities = np.array(
+                [np.sum([p * (1 - p) ** i for i in range(int(wait[c]))]) for c, p in enumerate(self.prob_drop)])
             dropped = np.random.uniform(size=self.nmbr_channels) < drop_probabilities
             self.hyst[dropped] = True
             self.hyst_waited[dropped] = True

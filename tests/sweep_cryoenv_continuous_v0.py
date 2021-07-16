@@ -9,32 +9,60 @@ from cryoenv.envs._cryoenv_discrete_v0 import action_to_discrete, observation_fr
 gym.logger.set_level(40)
 
 # constants
-CONTROL_PULSE_AMPLITUDES = [50, 20, 5]
+CONTROL_PULSE_AMPLITUDES = [50, 30, 5]
+# env_kwargs = {
+#     'V_set_iv': (0, 99),
+#     'V_set_step': 1,
+#     'ph_iv': (0, 0.99),
+#     'ph_step': 0.01,
+#     'wait_iv': (10, 50),
+#     'wait_step': 2,
+#     'heater_resistance': np.array([100.]),
+#     'thermal_link_channels': np.array([[1.]]),
+#     'thermal_link_heatbath': np.array([1.]),
+#     'temperature_heatbath': 0.,
+#     'min_ph': 0.01,
+#     'g': np.array([0.0001]),
+#     'T_hyst': np.array([0.1]),
+#     'T_hyst_reset': np.array([0.9]),
+#     'hyst_wait': np.array([50]),
+#     'control_pulse_amplitude': 50,
+#     'env_fluctuations': 0.005,
+#     'model_pileup_drops': False,
+#     'prob_drop': np.array([1e-3]),  # per second!
+#     'prob_pileup': np.array([0.2]),
+#     'save_trajectory': True,
+#     'k': np.array([15]),
+#     'T0': np.array([0.5]),
+#     'incentive_reset': 1e-1,
+# }
+
 env_kwargs = {
-    'V_set_iv': (0, 99),
-    'V_set_step': 1,
-    'ph_iv': (0, 0.99),
-    'ph_step': 0.01,
-    'wait_iv': (10, 50),
-    'wait_step': 2,
-    'heater_resistance': np.array([100.]),
-    'thermal_link_channels': np.array([[1.]]),
-    'thermal_link_heatbath': np.array([1.]),
-    'temperature_heatbath': 0.,
-    'min_ph': 0.1,
-    'g': np.array([0.0001]),
-    'T_hyst': np.array([0.1]),
-    'T_hyst_reset': np.array([0.9]),
-    'hyst_wait': np.array([50]),
-    'control_pulse_amplitude': 50,
-    'env_fluctuations': 0.005,
-    'model_pileup_drops': False,
-    'prob_drop': np.array([1e-3]),  # per second!
-    'prob_pileup': np.array([0.2]),
-    'save_trajectory': True,
-    'k': np.array([15]),
-    'T0': np.array([0.5]),
-}
+        'V_set_iv': (0, 99),
+        'V_set_step': 1,
+        'ph_iv': (0, 0.99),
+        'ph_step': 0.01,
+        'wait_iv': (10, 50),
+        'wait_step': 2,
+        'heater_resistance': np.array([100.]),
+        'thermal_link_channels': np.array([[1.]]),
+        'thermal_link_heatbath': np.array([1.]),
+        'temperature_heatbath': 0.,
+        'min_ph': 0.01,
+        'g': np.array([0.0001]),
+        'T_hyst': np.array([0.1]),
+        'T_hyst_reset': np.array([0.9]),
+        'hyst_wait': np.array([50]),
+        'control_pulse_amplitude': 50,
+        'env_fluctuations': 0.005,
+        'model_pileup_drops': True,
+        'prob_drop': np.array([1e-3]),  # per second!
+        'prob_pileup': np.array([0.1]),
+        'save_trajectory': True,
+        'k': np.array([15]),
+        'T0': np.array([0.5]),
+        'incentive_reset': 1e-2,
+    }
 
 # main
 
@@ -86,7 +114,7 @@ plt.show()
 # we want to see the trajectories
 print('Plot all trajectories.')
 
-rewards, dV, wait, reset, new_V_set, new_ph, T, T_inj = trajectories[0]
+rewards, dV, wait, reset, new_V_set, new_ph, T, T_inj = trajectories[0]  # low pulses
 _, _, _, _, _, new_ph_mid, _, _ = trajectories[1]
 _, _, _, _, _, new_ph_small, _, _ = trajectories[2]
 

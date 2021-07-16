@@ -62,7 +62,7 @@ if __name__ == '__main__':
         'thermal_link_channels': np.array([[1.]]),
         'thermal_link_heatbath': np.array([1.]),
         'temperature_heatbath': 0.,
-        'min_ph': 0.1,
+        'min_ph': 0.01,
         'g': np.array([0.0001]),
         'T_hyst': np.array([0.1]),
         'T_hyst_reset': np.array([0.9]),
@@ -75,6 +75,7 @@ if __name__ == '__main__':
         'save_trajectory': True,
         'k': np.array([15]),
         'T0': np.array([0.5]),
+        'incentive_reset': 1e-2,
     }
 
     print('Create Environment.')
@@ -90,13 +91,14 @@ if __name__ == '__main__':
     # ------------------------------------------------
 
     nmbr_agents = 1
-    train_steps = 1000
+    train_steps = 10000
     test_steps = 100
     smoothing = int(train_steps/500)
     assert train_steps % smoothing == 0, 'smoothing must be divisor of train_steps!'
     plot_axis = int(train_steps / smoothing)
     training = True
     testing = True
+    show = True
 
     # Creating lists to keep track of reward and epsilon values
     training_rewards = np.empty((nmbr_agents, plot_axis), dtype=float)
@@ -144,7 +146,8 @@ if __name__ == '__main__':
         fig.suptitle('CryoEnvContinuous v0: Training')
         plt.savefig(fname='results/training_cont.pdf')
 
-        plt.show()
+        if show:
+            plt.show()
 
     if testing:
         # ------------------------------------------------
@@ -199,4 +202,5 @@ if __name__ == '__main__':
 
         plt.title('CryoEnvContinuous v0: Test Trajectories')
 
-        plt.show()
+        if show:
+            plt.show()
