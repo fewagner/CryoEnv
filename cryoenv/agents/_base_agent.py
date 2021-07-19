@@ -10,6 +10,8 @@ class agent:
         self.actions = ...  # these are box or discrete objects from OpenAI
         self.observations = ...
 
+        # define action and observations for policy and value function
+
     def __call__(self, *args, **kwargs):
         return self.predict(*args, **kwargs)
 
