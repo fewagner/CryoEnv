@@ -14,3 +14,6 @@ register(
     id='cryoenv-continuous-v0',
     entry_point='cryoenv.envs:CryoEnvContinuous_v0',
 )
+
+__all__ = ['agents',
+           'envs']

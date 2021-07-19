@@ -126,11 +126,11 @@ class CryoEnvContinuous_v0(gym.Env):
         #                                     high=observation_high.reshape(-1),
         #                                     dtype=np.float32)
 
-        self.action_space = spaces.Box(low=- np.ones(2 * self.nmbr_channels),
-                                       high=np.ones(2 * self.nmbr_channels),
+        self.action_space = spaces.Box(low=- np.ones(self.nmbr_actions * self.nmbr_channels),
+                                       high=np.ones(self.nmbr_actions * self.nmbr_channels),
                                        dtype=np.float32)
-        self.observation_space = spaces.Box(low=- np.ones(2 * self.nmbr_channels),
-                                            high=np.ones(2 * self.nmbr_channels),
+        self.observation_space = spaces.Box(low=- np.ones(self.nmbr_observations * self.nmbr_channels),
+                                            high=np.ones(self.nmbr_observations * self.nmbr_channels),
                                             dtype=np.float32)
 
         # environment parameters
