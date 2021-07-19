@@ -33,7 +33,9 @@ class Agent:
         with open(path, 'wb') as f:
             pickle.dump(self, f)
 
+    # ---------------------------------------------------------------
     # These below need to be implemented in children!
+    # ---------------------------------------------------------------
 
     def learn(self, nmbr_steps, learning_rate, discounting_factor, **kwargs):
         """

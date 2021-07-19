@@ -29,7 +29,9 @@ class Policy:
         self.value_function = value_function
         self._setup()
 
+    # ---------------------------------------------------------------
     # These below need to be implemented in children!
+    # ---------------------------------------------------------------
 
     def _setup(self):
         """

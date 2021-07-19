@@ -28,7 +28,9 @@ class ValueFunction:
         self.nmbr_observations = observation_space.shape[0]
         self._setup()
 
+    # ---------------------------------------------------------------
     # These below need to be implemented in children!
+    # ---------------------------------------------------------------
 
     def _setup(self):
         """

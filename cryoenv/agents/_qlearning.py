@@ -15,7 +15,6 @@ class QLearning(Agent):
         assert 'max_epsilon' in kwargs and 'min_epsilon' in kwargs, 'You need to put max_epsilon and min_epslon as arguments!'
 
         obs = self.env.reset()
-        total_training_rewards = 0
 
         for step in range(nmbr_steps):
 
@@ -28,8 +27,6 @@ class QLearning(Agent):
                                                  learning_rate * (reward +
                                                                   discount_factor * self.value_function.greedy(
                                                    new_obs)))
-
-            total_training_rewards += reward
             obs = new_obs
 
             if done == True:
