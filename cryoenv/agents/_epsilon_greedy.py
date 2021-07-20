@@ -7,6 +7,15 @@ class EpsilonGreedy(Policy):
     def __init__(self, epsilon=None):
         super(EpsilonGreedy, self).__init__()
         self.epsilon = epsilon
+        self.was_greedy = False
+
+    # ------------------------------------------------
+    # own
+    # ------------------------------------------------
+
+    # ------------------------------------------------
+    # overwrite parent
+    # ------------------------------------------------
 
     def _setup(self):
         """
@@ -24,7 +33,8 @@ class EpsilonGreedy(Policy):
         """
         Get an action state value.
         """
-        if np.random.uniform() < self.epsilon:
-            return self.action_space.sample()
-        else:
+        self.was_greedy = np.random.uniform() < self.epsilon
+        if self.was_greedy:
             return self.value_function.greedy(observation)
+        else:
+            return self.action_space.sample()

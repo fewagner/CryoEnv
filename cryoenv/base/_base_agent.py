@@ -15,7 +15,7 @@ class Agent:
 
         # define action and observations for policy and value function
         self.value_function.define_spaces(self.action_space, self.observation_space)
-        self.policy.define_spaces(self.action_space, self.observation_space)
+        self.policy.define_spaces(self.action_space, self.observation_space, self.value_function)
 
     def __call__(self, *args, **kwargs):
         return self.predict(*args, **kwargs)

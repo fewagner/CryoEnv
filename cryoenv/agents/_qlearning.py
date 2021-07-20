@@ -5,7 +5,15 @@ import numpy as np
 class QLearning(Agent):
 
     def __init__(self, env, policy, value_function):
-        super(QLearning, self).__init__(env, policy, value_function)
+        super(QLearning, self).__init__(env=env, policy=policy, value_function=value_function)
+
+    # ------------------------------------------------
+    # own
+    # ------------------------------------------------
+
+    # ------------------------------------------------
+    # overwrite parent
+    # ------------------------------------------------
 
     def learn(self, nmbr_steps, learning_rate, discount_factor, **kwargs):
         """
@@ -21,12 +29,20 @@ class QLearning(Agent):
             action = self.policy.predict(obs)
             new_obs, reward, done, info = self.env.step(action)
 
-            self.value_function.update(action=action,
-                                       observation=obs,
-                                       new_value=(1 - learning_rate) * self.value_function.predict(obs, action) +
-                                                 learning_rate * (reward +
-                                                                  discount_factor * self.value_function.greedy(
-                                                   new_obs)))
+            if self.policy.was_greedy:
+                print('Update!, ', (1 - learning_rate) * self.value_function.predict(action, obs) +
+                                                     learning_rate * (reward +
+                                                                      discount_factor * self.value_function.predict(self.value_function.greedy(
+                                                       new_obs), new_obs)))
+                print(self.value_function.predict(action, obs), self.value_function.predict(self.value_function.greedy(
+                                                       new_obs), new_obs))
+                self.value_function.update(action=action,
+                                           observation=obs,
+                                           new_value=(1 - learning_rate) * self.value_function.predict(action, obs) +
+                                                     learning_rate * (reward +
+                                                                      discount_factor * self.value_function.predict(self.value_function.greedy(
+                                                       new_obs), new_obs)))
+
             obs = new_obs
 
             if done == True:

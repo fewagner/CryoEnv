@@ -3,7 +3,7 @@ import gym
 import matplotlib.pyplot as plt
 import numpy as np
 from stable_baselines3.common.env_checker import check_env
-import cryoenv
+from cryoenv.agents import Interpolator, EpsilonGreedy, QLearning
 
 import warnings
 
@@ -52,11 +52,11 @@ if __name__ == '__main__':
 
     check_env(env)
 
-    value_function = cryoenv.agents.Interpolator(maxlen=100, initval=0, method='nearest')
-    policy = cryoenv.agents.EpsilonGreedy(epsilon=1)
-    agent = cryoenv.agents.QLearning(env, policy, value_function)
+    value_function = Interpolator(maxlen=1000, initval=0, method='nearest')
+    policy = EpsilonGreedy(epsilon=1)
+    agent = QLearning(env=env, policy=policy, value_function=value_function)
 
-    agent.learn(nmbr_steps=100, learning_rate=0.1, discount_factor=0.6, max_epsilon=1, min_epsilon=0)
+    agent.learn(nmbr_steps=100, learning_rate=0.2, discount_factor=0.6, max_epsilon=1, min_epsilon=0)
 
     print('Testing...')
     obs = env.reset()
