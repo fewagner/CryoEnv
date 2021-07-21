@@ -52,16 +52,82 @@ if __name__ == '__main__':
 
     check_env(env)
 
-    value_function = Interpolator(maxlen=1000, initval=0, method='nearest')
-    policy = EpsilonGreedy(epsilon=1)
-    agent = QLearning(env=env, policy=policy, value_function=value_function)
+    # ------------------------------------------------
+    # DEFINE AGENT PARAMETERS
+    # ------------------------------------------------
 
-    agent.learn(nmbr_steps=100, learning_rate=0.2, discount_factor=0.6, max_epsilon=1, min_epsilon=0)
+    nmbr_agents = 1
+    train_steps = 10000
+    test_steps = 100
+    smoothing = int(train_steps/500)
+    assert train_steps % smoothing == 0, 'smoothing must be divisor of train_steps!'
+    plot_axis = int(train_steps / smoothing)
+    training = True
+    # testing = True
+    show = True
 
-    print('Testing...')
-    obs = env.reset()
-    for i in range(100):
-        action = agent.predict(obs)
-        nobs, rewards, dones, info = env.step(action)
-        print(f'S {obs} --> A {action} --> R {rewards} S {nobs}')
-        obs = nobs
+    # Creating lists to keep track of reward and epsilon values
+    training_rewards = np.empty((nmbr_agents, plot_axis), dtype=float)
+
+    if training:
+        # ------------------------------------------------
+        # TRAINING
+        # ------------------------------------------------
+
+        print('Training...')
+        for agi in range(nmbr_agents):
+            print('Learn Agent {}:'.format(agi))
+
+            value_function = Interpolator(maxlen=500, initval=0, method='nearest')
+            policy = EpsilonGreedy(epsilon=1)
+            agent = QLearning(env=env, policy=policy, value_function=value_function)
+
+            agent.learn(nmbr_steps=train_steps, learning_rate=0.5, discount_factor=0.6, max_epsilon=1, min_epsilon=0)
+            if agi == 0:
+                agent.save("model_continuous")
+
+            rew, _, _, _, _, _, _, _, = env.get_trajectory()
+            training_rewards[agi, :] = np.mean(rew.reshape(-1, smoothing), axis=1)
+            env.reset()
+            del agent
+
+    # ------------------------------------------------
+    # TRAINING PLOT
+    # ------------------------------------------------
+
+        print('Plots...')
+        fig, host = plt.subplots(figsize=(8, 5))
+
+        x = np.arange(plot_axis)*smoothing
+
+        host.set_xlabel("Environment Steps")
+        host.set_ylabel("Average Reward")
+
+        color1 = 'green'
+
+        p1, = host.plot(x, np.mean(training_rewards, axis=0), color=color1, label="Reward", linewidth=2, zorder=15)
+        up = np.mean(training_rewards, axis=0) + np.std(training_rewards, axis=0)
+        low = np.mean(training_rewards, axis=0) - np.std(training_rewards, axis=0)
+        _ = host.fill_between(x, y1=up, y2=low, color=color1, zorder=5, alpha=0.3)
+
+        host.yaxis.label.set_color(p1.get_color())
+
+        fig.tight_layout()
+        fig.suptitle('CryoEnvContinuous v0: Training')
+        plt.savefig(fname='results/training_cont.pdf')
+
+        if show:
+            plt.show()
+
+    # if testing:
+    #     # ------------------------------------------------
+    #     # TESTING
+    #     # ------------------------------------------------
+    #
+    # print('Testing...')
+    # obs = env.reset()
+    # for i in range(100):
+    #     action = agent.predict(obs)
+    #     nobs, rewards, dones, info = env.step(action)
+    #     print(f'S {obs} --> A {action} --> R {rewards} S {nobs}')
+    #     obs = nobs

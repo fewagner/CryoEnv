@@ -1,5 +1,6 @@
 from ..base import Agent
 import numpy as np
+from tqdm.auto import trange
 
 
 class QLearning(Agent):
@@ -24,18 +25,13 @@ class QLearning(Agent):
 
         obs = self.env.reset()
 
-        for step in range(nmbr_steps):
+        for step in trange(nmbr_steps):
 
             action = self.policy.predict(obs)
             new_obs, reward, done, info = self.env.step(action)
 
             if self.policy.was_greedy:
-                print('Update!, ', (1 - learning_rate) * self.value_function.predict(action, obs) +
-                                                     learning_rate * (reward +
-                                                                      discount_factor * self.value_function.predict(self.value_function.greedy(
-                                                       new_obs), new_obs)))
-                print(self.value_function.predict(action, obs), self.value_function.predict(self.value_function.greedy(
-                                                       new_obs), new_obs))
+
                 self.value_function.update(action=action,
                                            observation=obs,
                                            new_value=(1 - learning_rate) * self.value_function.predict(action, obs) +

@@ -37,7 +37,7 @@ class Interpolator(ValueFunction):
         """
         Create the model that approximates the values.
         """
-        for v in product([-1, 1], repeat=self.nmbr_actions + self.nmbr_observations):
+        for v in product([-1., 1.], repeat=self.nmbr_actions + self.nmbr_observations):
             self.x.append(np.array(v))
         for i in range(2 ** (self.nmbr_actions + self.nmbr_observations)):
             self.y.append(self.initval)
@@ -49,19 +49,17 @@ class Interpolator(ValueFunction):
         """
 
         best_action = self.x[0][:self.nmbr_actions]
-        print(self.x, self.y, np.concatenate((self.x[0][:self.nmbr_actions], observation)))
         best_value = griddata(self.x,
                               self.y,
                               np.concatenate((self.x[0][:self.nmbr_actions], observation)),
                               method=self.method,
-                              fill_value=self.fill_value)
-        print(best_action, best_value)
+                              fill_value=self.fill_value)[0]
         for ao in self.x:
             v = griddata(self.x,
                          self.y,
                          np.concatenate((ao[:self.nmbr_actions], observation)),
                          method=self.method,
-                         fill_value=self.fill_value)
+                         fill_value=self.fill_value)[0]
             if v > best_value:
                 best_value = v
                 best_action = ao[:self.nmbr_actions]
@@ -83,8 +81,11 @@ class Interpolator(ValueFunction):
         """
         Get an action state value.
         """
+        assert type(action[0]) == np.float64, f'Action not a float array: {type(action[0])}!'
+        assert type(observation[0]) == np.float64, f'Observation not a float array: {type(observation[0])}!'
+
         return griddata(self.x,
                         self.y,
                         np.concatenate((action, observation)),
                         method=self.method,
-                        fill_value=self.fill_value)
+                        fill_value=self.fill_value)[0]
