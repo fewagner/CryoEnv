@@ -45,6 +45,78 @@ class ProgressBarManager(object):
         self.pbar.close()
 
 
+
+
+
+
+def model_testing(model, env, test_steps, iteration, sub_train_steps, show=False):
+
+    # ------------------------------------------------
+    # TESTING
+    # ------------------------------------------------
+
+    # Q = np.load("q_table_ep" + str(ep) + "_ag" + str(ag) + ".npy")
+
+    print('Testing...')
+    obs = env.reset()
+    for i in range(test_steps):
+        action, _states = model.predict(obs)
+        obs, rewards, dones, info = env.step(action)
+
+    # ------------------------------------------------
+    # TESTING PLOT TRAJECTORIES
+    # ------------------------------------------------
+
+    rewards, _, wait, _, V_set, _, _, _ = env.get_trajectory()
+    env_steps = range(test_steps)
+
+    # plot the trajectories
+
+    fig, host = plt.subplots(figsize=(8, 5))
+    par1 = host.twinx()
+    par2 = host.twinx()
+
+    host.set_xlabel("Environment Steps")
+    host.set_ylabel("Voltage Setpoint (a.u.)")
+    par1.set_ylabel("Reward")
+    par2.set_ylabel("Waiting Time (s)")
+
+    color1 = 'red'
+    color2 = 'black'
+    color3 = 'grey'
+
+    p1, = host.plot(env_steps, V_set[:, 0], color=color2, label="Voltage Setpoint", linewidth=2,
+                    zorder=15)
+    p2, = par1.plot(env_steps, rewards, color=color1, label="Reward", linewidth=2,
+                    zorder=10, alpha=0.6)
+    p3, = par2.plot(env_steps, wait, color=color3, label="Waiting Time", linestyle='dashed',
+                    linewidth=2.5)
+
+    par2.spines['right'].set_position(('outward', 60))
+
+    host.yaxis.label.set_color(p1.get_color())
+    par1.yaxis.label.set_color(p2.get_color())
+    par2.yaxis.label.set_color(p3.get_color())
+
+    fig.tight_layout()
+
+    plt.suptitle(r'CryoEnvContinuous v0: Test Trajectories')
+    title_text = "{}-{}".format(iteration*sub_train_steps,
+                                (iteration+1)*sub_train_steps)
+    plt.title(title_text)
+    plt.tight_layout()
+
+    plt.savefig(fname='results/test_cont_{}.pdf'.format(iteration))
+    if show:
+        plt.show()
+
+
+
+
+
+
+
+
 if __name__ == '__main__':
     # ------------------------------------------------
     # CREATE THE ENVIRONMENT
@@ -91,7 +163,7 @@ if __name__ == '__main__':
     # ------------------------------------------------
 
     nmbr_agents = 1
-    train_steps = 2e5
+    train_steps = 5e5
     test_steps = 100
     smoothing = int(train_steps/500)
     assert train_steps % smoothing == 0, 'smoothing must be divisor of train_steps!'
@@ -112,8 +184,26 @@ if __name__ == '__main__':
         for agent in range(nmbr_agents):
             print('Learn Agent {}:'.format(agent))
             model = A2C("MlpPolicy", env, gamma=0.6, verbose=False)
-            with ProgressBarManager(train_steps) as callback:
-                model.learn(total_timesteps=train_steps, callback=callback)
+
+            sub_training = 10
+            sub_train_steps = int(train_steps/sub_training)
+            for i in range(sub_training):
+                print('({}/{}) training from '.format(i+1, sub_training) + \
+                      '{} to {}'.format(i*sub_train_steps, (i+1)*sub_train_steps)
+                     )
+                with ProgressBarManager(sub_train_steps) as callback:
+                    model.learn(total_timesteps=sub_train_steps, callback=callback)
+
+                if testing:
+                    model_testing(model,
+                        env,
+                        test_steps,
+                        i,
+                        sub_train_steps,
+                        show=False #show
+                    )
+
+
             if agent == 0:
                 model.save("model_continuous")
             rew, _, _, _, _, _, _, _, = env.get_trajectory()
@@ -125,82 +215,26 @@ if __name__ == '__main__':
         # TRAINING PLOT
         # ------------------------------------------------
 
-        print('Plots...')
-        fig, host = plt.subplots(figsize=(8, 5))
-
-        x = np.arange(plot_axis)*smoothing
-
-        host.set_xlabel("Environment Steps")
-        host.set_ylabel("Average Reward")
-
-        color1 = 'green'
-
-        p1, = host.plot(x, np.mean(training_rewards, axis=0), color=color1, label="Reward", linewidth=2, zorder=15)
-        up = np.mean(training_rewards, axis=0) + np.std(training_rewards, axis=0)
-        low = np.mean(training_rewards, axis=0) - np.std(training_rewards, axis=0)
-        _ = host.fill_between(x, y1=up, y2=low, color=color1, zorder=5, alpha=0.3)
-
-        host.yaxis.label.set_color(p1.get_color())
-
-        fig.tight_layout()
-        fig.suptitle('CryoEnvContinuous v0: Training')
-        plt.savefig(fname='results/training_cont.pdf')
-
-        if show:
-            plt.show()
-
-    if testing:
-        # ------------------------------------------------
-        # TESTING
-        # ------------------------------------------------
-
-        # Q = np.load("q_table_ep" + str(ep) + "_ag" + str(ag) + ".npy")
-
-        print('Testing...')
-        model = A2C.load("model_continuous")
-        obs = env.reset()
-        for i in range(test_steps):
-            action, _states = model.predict(obs)
-            obs, rewards, dones, info = env.step(action)
-
-        # ------------------------------------------------
-        # TESTING PLOT TRAJECTORIES
-        # ------------------------------------------------
-
-        rewards, _, wait, _, V_set, _, _, _ = env.get_trajectory()
-        env_steps = range(test_steps)
-
-        # plot the trajectories
-
-        fig, host = plt.subplots(figsize=(8, 5))
-        par1 = host.twinx()
-        par2 = host.twinx()
-
-        host.set_xlabel("Environment Steps")
-        host.set_ylabel("Voltage Setpoint (a.u.)")
-        par1.set_ylabel("Reward")
-        par2.set_ylabel("Waiting Time (s)")
-
-        color1 = 'red'
-        color2 = 'black'
-        color3 = 'grey'
-
-        p1, = host.plot(env_steps, V_set[:, 0], color=color2, label="Voltage Setpoint", linewidth=2,
-                        zorder=15)
-        p2, = par1.plot(env_steps, rewards, color=color1, label="Reward", linewidth=2,
-                        zorder=10, alpha=0.6)
-        p3, = par2.plot(env_steps, wait, color=color3, label="Waiting Time", linestyle='dashed',
-                        linewidth=2.5)
-
-        par2.spines['right'].set_position(('outward', 60))
-
-        host.yaxis.label.set_color(p1.get_color())
-        par1.yaxis.label.set_color(p2.get_color())
-        par2.yaxis.label.set_color(p3.get_color())
-
-        fig.tight_layout()
-
-        plt.title('CryoEnvContinuous v0: Test Trajectories')
-
-        if show:
-            plt.show()
+        # print('Plots...')
+        # fig, host = plt.subplots(figsize=(8, 5))
+        #
+        # x = np.arange(plot_axis)*smoothing
+        #
+        # host.set_xlabel("Environment Steps")
+        # host.set_ylabel("Average Reward")
+        #
+        # color1 = 'green'
+        #
+        # p1, = host.plot(x, np.mean(training_rewards, axis=0), color=color1, label="Reward", linewidth=2, zorder=15)
+        # up = np.mean(training_rewards, axis=0) + np.std(training_rewards, axis=0)
+        # low = np.mean(training_rewards, axis=0) - np.std(training_rewards, axis=0)
+        # _ = host.fill_between(x, y1=up, y2=low, color=color1, zorder=5, alpha=0.3)
+        #
+        # host.yaxis.label.set_color(p1.get_color())
+        #
+        # fig.tight_layout()
+        # fig.suptitle('CryoEnvContinuous v0: Training')
+        # plt.savefig(fname='results/training_cont.pdf')
+        #
+        # if show:
+        #     plt.show()

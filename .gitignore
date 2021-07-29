@@ -141,3 +141,5 @@ cython_debug/
 /venv/
 /info/
 /data/
+/tests/results/*
+/tests/model_*.zip
