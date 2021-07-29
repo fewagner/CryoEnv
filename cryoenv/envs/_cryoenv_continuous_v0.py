@@ -16,12 +16,12 @@ class CryoEnvContinuous_v0(gym.Env):
     - Always -1 for sending pulse
 
     Actions:
-    - Decrease V_set by 0 to 99, in 1 steps
+    - Decrease dac by 0 to 99, in 1 steps
     - Waiting time between 2 and 100 seconds, in 2 seconds steps
     - —> action space size 1 + 100*50 = 5001
 
     Oberservation (State):
-    - V_set 100 steps from 0 to 99
+    - dac 100 steps from 0 to 99
     - PH 100 steps from 0 to 0.99
     - —> observation space size 100*100 = 10000
 
@@ -30,7 +30,7 @@ class CryoEnvContinuous_v0(gym.Env):
     metadata = {'render.modes': ['human']}
 
     def __init__(self,
-                 V_set_iv=(0., 99.),  # first action
+                 dac_iv=(0., 99.),  # first action
                  wait_iv=(2., 100.),  # secound action
                  ph_iv=(0., 0.99),
                  heater_resistance=np.array([100.]),
@@ -42,7 +42,7 @@ class CryoEnvContinuous_v0(gym.Env):
                  T_hyst=np.array([0.1]),
                  T_hyst_reset=np.array([0.9]),
                  hyst_wait=np.array([50]),
-                 control_pulse_amplitude=10,
+                 tpa=10,
                  env_fluctuations=1,
                  model_pileup_drops=True,
                  prob_drop=np.array([1e-3]),  # per second!
@@ -55,7 +55,7 @@ class CryoEnvContinuous_v0(gym.Env):
                  ):
 
         # input handling
-        self.V_set_iv = V_set_iv
+        self.dac_iv = dac_iv
         self.ph_iv = ph_iv
         self.wait_iv = wait_iv
         self.k = k
@@ -80,16 +80,16 @@ class CryoEnvContinuous_v0(gym.Env):
         self.nmbr_actions = 2  # will change later
         self.nmbr_observations = 2  # will change later
 
-        if type(V_set_iv) is tuple:
-            assert len(V_set_iv) == 2, \
-                "The tuple of V_set_iv must be of length {}.".format(2)
-            self.V_set_iv = np.array([V_set_iv for i in range(self.nmbr_channels)])
-        elif type(V_set_iv) is list or type(V_set_iv) is np.ndarray:
-            assert len(V_set_iv) == self.nmbr_channels, \
-                "The list V_set_iv must be of length of {}.".format(self.nmbr_channels)
-            self.V_set_iv = V_set_iv
+        if type(dac_iv) is tuple:
+            assert len(dac_iv) == 2, \
+                "The tuple of dac_iv must be of length {}.".format(2)
+            self.dac_iv = np.array([dac_iv for i in range(self.nmbr_channels)])
+        elif type(dac_iv) is list or type(dac_iv) is np.ndarray:
+            assert len(dac_iv) == self.nmbr_channels, \
+                "The list dac_iv must be of length of {}.".format(self.nmbr_channels)
+            self.dac_iv = dac_iv
         else:
-            raise ValueError("V_set_iv has to be either a tuple or a list/numpy.ndarray.")
+            raise ValueError("dac_iv has to be either a tuple or a list/numpy.ndarray.")
 
         if type(wait_iv) is tuple:
             assert len(wait_iv) == 2, \
@@ -113,10 +113,10 @@ class CryoEnvContinuous_v0(gym.Env):
         else:
             raise ValueError("ph_iv has to be either a tuple or a list/numpy.ndarray.")
 
-        # action_low = np.array([[self.V_set_iv[i][0], self.wait_iv[i][0]] for i in range(self.nmbr_channels)])
-        # action_high = np.array([[self.V_set_iv[i][1], self.wait_iv[i][1]] for i in range(self.nmbr_channels)])
-        # observation_low = np.array([[self.V_set_iv[i][0], self.ph_iv[i][0]] for i in range(self.nmbr_channels)])
-        # observation_high = np.array([[self.V_set_iv[i][1], self.ph_iv[i][1]] for i in range(self.nmbr_channels)])
+        # action_low = np.array([[self.dac_iv[i][0], self.wait_iv[i][0]] for i in range(self.nmbr_channels)])
+        # action_high = np.array([[self.dac_iv[i][1], self.wait_iv[i][1]] for i in range(self.nmbr_channels)])
+        # observation_low = np.array([[self.dac_iv[i][0], self.ph_iv[i][0]] for i in range(self.nmbr_channels)])
+        # observation_high = np.array([[self.dac_iv[i][1], self.ph_iv[i][1]] for i in range(self.nmbr_channels)])
         #
         # # create action and observation spaces
         # self.action_space = spaces.Box(low=action_low.reshape(-1),
@@ -140,7 +140,7 @@ class CryoEnvContinuous_v0(gym.Env):
         self.temperature_heatbath = np.array(temperature_heatbath)
         self.g = np.full(self.nmbr_channels, g)
         self.T_hyst = np.full(self.nmbr_channels, T_hyst)
-        self.control_pulse_amplitude = np.full(self.nmbr_channels, control_pulse_amplitude)
+        self.tpa = np.full(self.nmbr_channels, tpa)
         self.env_fluctuations = np.full(self.nmbr_channels, env_fluctuations)
         self.T = np.zeros(self.nmbr_channels)
         self.hyst = np.full(self.nmbr_channels, False)  # setting if hysteresis is active
@@ -185,7 +185,7 @@ class CryoEnvContinuous_v0(gym.Env):
         self.V_decrease_trajectory = []
         self.wait_trajectory = []
         self.reset_trajectory = []
-        self.new_V_set_trajectory = []
+        self.new_dac_trajectory = []
         self.new_ph_trajectory = []
         self.T_trajectory = []
         self.T_inj_trajectory = []
@@ -199,21 +199,21 @@ class CryoEnvContinuous_v0(gym.Env):
             self.thermal_link_channels @ np.ones(self.nmbr_channels))) @ T
         return T.flatten()
 
-    def environment_model(self, V_set):
+    def environment_model(self, dac):
         return np.random.normal(loc=0, scale=self.env_fluctuations, size=self.nmbr_channels)
 
-    def get_pulse_height(self, V_set):
+    def get_pulse_height(self, dac):
         # get long scale environment fluctuations - we also get short scale fluctuations further down
-        P_E_long = self.environment_model(V_set)
+        P_E_long = self.environment_model(dac)
 
         # height without signal
-        P_R = V_set / self.heater_resistance  # P...power; voltage goes through square rooter
+        P_R = dac / self.heater_resistance  # P...power; voltage goes through square rooter
         T = self.temperature_model(P_R=P_R,
-                                   P_E=self.environment_model(V_set) + P_E_long)
+                                   P_E=self.environment_model(dac) + P_E_long)
         height_baseline = self.sensor_model(T, self.k, self.T0)
 
         # height with signal
-        P_R_inj = np.sqrt(V_set ** 2 + self.control_pulse_amplitude ** 2) / \
+        P_R_inj = np.sqrt(dac ** 2 + self.tpa ** 2) / \
                   self.heater_resistance  # P...power; voltage goes through square rooter
         pile_up = np.zeros(self.nmbr_channels)
         if self.model_pileup_drops:
@@ -221,7 +221,7 @@ class CryoEnvContinuous_v0(gym.Env):
             pile_up[piled_up] = np.random.exponential(size=np.sum(piled_up),
                                                       scale=self.env_fluctuations * 40)
         T_inj = self.temperature_model(P_R=P_R_inj,
-                                       P_E=self.environment_model(V_set) + P_E_long + pile_up)
+                                       P_E=self.environment_model(dac) + P_E_long + pile_up)
         height_signal = self.sensor_model(T_inj, self.k, self.T0)
 
         # difference is pulse height
@@ -240,9 +240,9 @@ class CryoEnvContinuous_v0(gym.Env):
         _, wait = action.reshape((self.nmbr_channels, self.nmbr_actions)).T
 
         # unpack new state
-        V_set, ph = new_state.reshape((self.nmbr_channels, self.nmbr_observations)).T
+        dac, ph = new_state.reshape((self.nmbr_channels, self.nmbr_observations)).T
 
-        for w, p, v in zip(wait, ph, V_set):
+        for w, p, v in zip(wait, ph, dac):
 
             # one second for sending a control pulse
             reward -= 1
@@ -263,26 +263,26 @@ class CryoEnvContinuous_v0(gym.Env):
 
     def norm_action(self, action):
         normed_action = np.copy(action)
-        normed_action[0::2] = 2 * (normed_action[0::2] - self.V_set_iv[:, 0]) / self.V_set_iv[:,
+        normed_action[0::2] = 2 * (normed_action[0::2] - self.dac_iv[:, 0]) / self.dac_iv[:,
                                                                                 1] - 1  # norm the v sets
         normed_action[1::2] = 2 * (normed_action[1::2] - self.wait_iv[:, 0]) / self.wait_iv[:, 1] - 1  # norm the waits
         return normed_action
 
     def denorm_action(self, normed_action):
         action = np.copy(normed_action)
-        action[0::2] = self.V_set_iv[:, 1] * (1 + action[0::2]) / 2 + self.V_set_iv[:, 0]  # denorm the v sets
+        action[0::2] = self.dac_iv[:, 1] * (1 + action[0::2]) / 2 + self.dac_iv[:, 0]  # denorm the v sets
         action[1::2] = self.wait_iv[:, 1] * (1 + action[1::2]) / 2 + self.wait_iv[:, 0]  # denorm the waits
         return action
 
     def norm_state(self, state):
         normed_state = np.copy(state)
-        normed_state[0::2] = 2 * (normed_state[0::2] - self.V_set_iv[:, 0]) / self.V_set_iv[:, 1] - 1  # norm the v sets
+        normed_state[0::2] = 2 * (normed_state[0::2] - self.dac_iv[:, 0]) / self.dac_iv[:, 1] - 1  # norm the v sets
         normed_state[1::2] = 2 * (normed_state[1::2] - self.ph_iv[:, 0]) / self.ph_iv[:, 1] - 1  # norm the phs
         return normed_state
 
     def denorm_state(self, normed_state):
         state = np.copy(normed_state)
-        state[0::2] = self.V_set_iv[:, 1] * (1 + state[0::2]) / 2 + self.V_set_iv[:, 0]  # denorm the v sets
+        state[0::2] = self.dac_iv[:, 1] * (1 + state[0::2]) / 2 + self.dac_iv[:, 0]  # denorm the v sets
         state[1::2] = self.ph_iv[:, 1] * (1 + state[1::2]) / 2 + self.ph_iv[:, 0]  # denorm the phs
         return state
 
@@ -294,17 +294,17 @@ class CryoEnvContinuous_v0(gym.Env):
 
     def _step(self, action):
         # unpack action
-        future_V_sets, wait = action.reshape((self.nmbr_channels, self.nmbr_actions)).T
+        future_dacs, wait = action.reshape((self.nmbr_channels, self.nmbr_actions)).T
 
         # unpack current state
-        V_sets, phs = self.state.reshape((self.nmbr_channels, self.nmbr_observations)).T
+        dacs, phs = self.state.reshape((self.nmbr_channels, self.nmbr_observations)).T
 
         # get the next V sets
-        if any(future_V_sets < self.V_set_iv[:, 0]):
-            future_V_sets[future_V_sets < self.V_set_iv[:, 0]] = self.V_set_iv[future_V_sets < self.V_set_iv[:, 0]][0]
+        if any(future_dacs < self.dac_iv[:, 0]):
+            future_dacs[future_dacs < self.dac_iv[:, 0]] = self.dac_iv[future_dacs < self.dac_iv[:, 0]][0]
 
         # hysteresis handling
-        self.T = self.temperature_model(P_R=future_V_sets / self.heater_resistance, P_E=0)
+        self.T = self.temperature_model(P_R=future_dacs / self.heater_resistance, P_E=0)
         self.hyst_waited[self.T > self.T_hyst_reset] += wait
         self.hyst[self.hyst_waited > self.hyst_wait] = False
         self.hyst[self.T < self.T_hyst] = True
@@ -317,10 +317,10 @@ class CryoEnvContinuous_v0(gym.Env):
             self.hyst_waited[dropped] = True
 
         # get the next phs
-        future_phs, future_T, future_T_inj = self.get_pulse_height(future_V_sets)
+        future_phs, future_T, future_T_inj = self.get_pulse_height(future_dacs)
 
         # pack new_state
-        new_state = np.array([future_V_sets, future_phs]).T.reshape(-1)
+        new_state = np.array([future_dacs, future_phs]).T.reshape(-1)
 
         # get the reward
         reward = self.reward(new_state, action)
@@ -334,7 +334,7 @@ class CryoEnvContinuous_v0(gym.Env):
             # self.V_decrease_trajectory.append(V_decs)
             self.wait_trajectory.append(wait)
             # self.reset_trajectory.append(resets)
-            self.new_V_set_trajectory.append(future_V_sets)
+            self.new_dac_trajectory.append(future_dacs)
             self.new_ph_trajectory.append(future_phs)
             self.T_trajectory.append(future_T)
             self.T_inj_trajectory.append(future_T_inj)
@@ -347,9 +347,9 @@ class CryoEnvContinuous_v0(gym.Env):
         return new_state, reward, done, info
 
     def reset(self):
-        future_V_sets = self.V_set_iv[:, 1]
-        future_phs, _, _ = self.get_pulse_height(future_V_sets)
-        self.state = np.array([future_V_sets, future_phs]).T.reshape(-1)
+        future_dacs = self.dac_iv[:, 1]
+        future_phs, _, _ = self.get_pulse_height(future_dacs)
+        self.state = np.array([future_dacs, future_phs]).T.reshape(-1)
         self.hyst = np.full(self.nmbr_channels, False)
         self.hyst_waited = np.zeros(self.nmbr_channels)
         self.reset_trajectories()
@@ -360,7 +360,7 @@ class CryoEnvContinuous_v0(gym.Env):
                np.array(self.V_decrease_trajectory), \
                np.array(self.wait_trajectory), \
                np.array(self.reset_trajectory), \
-               np.array(self.new_V_set_trajectory), \
+               np.array(self.new_dac_trajectory), \
                np.array(self.new_ph_trajectory), \
                np.array(self.T_trajectory), \
                np.array(self.T_inj_trajectory)
