@@ -68,6 +68,9 @@ instance/
 # Scrapy stuff:
 .scrapy
 
+# VSCode stuff
+.vscode/
+
 # Sphinx documentation
 docs/_build/
 
@@ -144,5 +147,6 @@ cython_debug/
 /venv/
 /info/
 /data/
+/test/data/*
 /tests/results/*
 /tests/model_*.zip
