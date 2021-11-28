@@ -112,7 +112,8 @@ if __name__ == '__main__':
         for agent in range(nmbr_agents):
             print('Learn Agent {}:'.format(agent))
             # model = A2C("MlpPolicy", env, verbose=False, gamma=0.6)
-            model = SAC("MlpPolicy", env, learning_rate=3e-4, verbose=False, gamma=0.6)
+            model = SAC("MlpPolicy", env, learning_rate=3e-4, verbose=True, gamma=0.6, train_freq=2, use_sde=True, target_update_interval=40,
+            create_eval_env=True)
             with ProgressBarManager(train_steps) as callback:
                 model.learn(total_timesteps=train_steps, callback=callback)
             if agent == 0:
@@ -159,7 +160,7 @@ if __name__ == '__main__':
 
         print('Testing...')
         # model = A2C.load("model_continuous")
-        model = SAC.load("model_continuous")
+        model = SAC.load("model_continuous.zip")
         obs = env.reset()
         for i in range(test_steps):
             action, _states = model.predict(obs)
