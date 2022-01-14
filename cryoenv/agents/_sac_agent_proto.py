@@ -38,7 +38,7 @@ class SAC:
         self.target_value = ValueNetwork(beta, input_dims, name='target_value')  # we will softcopy the value network
 
         self.scale = reward_scale
-        self.update_network_parameters(tau=1)
+        self.update_network_parameters()
 
     def choose_action(self, observation):
         state = torch.tensor(np.array([observation])).to(self.actor.device)
@@ -98,9 +98,9 @@ class SAC:
 
         actions, log_probs = self.actor.sample_normal(state, reparam=False)
         log_probs = log_probs.view(-1)
-        q1_old_policy = self.critic_1.forward(state, action)  # critic value under the new policy
-        q2_old_policy = self.critic_2.forward(state, action)
-        critic_value = torch.min(q1_old_policy, q2_old_policy)  # to eliminate the overestimation bias
+        q1_new_policy = self.critic_1.forward(state, actions)  # critic value under the new policy
+        q2_new_policy = self.critic_2.forward(state, actions)
+        critic_value = torch.min(q1_new_policy, q2_new_policy)  # to eliminate the overestimation bias
         critic_value = critic_value.view(-1)
 
         # value network loss
@@ -116,10 +116,10 @@ class SAC:
         self.critic_1.optimizer.zero_grad()
         self.critic_2.optimizer.zero_grad()
         q_hat = self.scale * reward + self.gamma*value_
-        q1_new_policy = self.critic_1.forward(state, actions).view(-1)
-        q2_new_policy = self.critic_2.forward(state, actions).view(-1)
-        critic_1_loss = 0.5 * F.mse_loss(q1_new_policy, q_hat)
-        critic_2_loss = 0.5 * F.mse_loss(q2_new_policy, q_hat)
+        q1_old_policy = self.critic_1.forward(state, action).view(-1)
+        q2_old_policy = self.critic_2.forward(state, action).view(-1)
+        critic_1_loss = 0.5 * F.mse_loss(q1_old_policy, q_hat)
+        critic_2_loss = 0.5 * F.mse_loss(q2_old_policy, q_hat)
 
         critic_loss = critic_1_loss + critic_2_loss
         #print(critic_loss.item())
