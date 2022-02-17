@@ -13,7 +13,7 @@ from tqdm import tqdm
 class SAC_v2:
     def __init__(self, env, state_dim, action_dim,
                  batch_size=256, lr_actor=3e-4, lr_crit_val=3e-4, init_weights: Optional[str] = None,
-                 tau=0.005, reward_scale=1.0, buffer_max_size=1000000, hidden_dims = [256, 256],
+                 tau=0.005, reward_scale=2.0, buffer_max_size=1000000, hidden_dims = [256, 256],
                  gamma=0.99, target_update_interval=1
                  ):
         """
@@ -57,7 +57,7 @@ class SAC_v2:
 
     def learn(self, episodes, episode_steps):
         max_steps = episode_steps
-        for ep in tqdm(range(episodes)):
+        for ep in range(episodes):
             state = self.env.reset()
             done = False
             i = 0
@@ -67,11 +67,11 @@ class SAC_v2:
                 new_state, reward, done, info = self.env.step(action)
                 score += reward
                 self.buffer.store_transition(state, action, reward, new_state, done)
-                self._learn()
+                self._learn(i)
                 i += 1
             print(f'episode: {ep}, score: {score}')
 
-    def _learn(self):
+    def _learn(self, gradient_step):
         if len(self.buffer) < self.batch_size:
             return
 
@@ -83,46 +83,58 @@ class SAC_v2:
         next_state = torch.tensor(next_state, dtype=torch.float).to(self.device)
         done = torch.tensor(done).to(self.device)
 
-        _, log_probs = self.policy.sample_action(state)
-        log_probs = log_probs.view(-1)
-
         # update value function
         value = self.value(state).view(-1)
         target_value = self.target_value(next_state).view(-1)  # target value of next_state
         target_value[done] = 0.0  # value is 0 at terminal states (definition of value functions)
 
-        q1_old_policy = self.qf_1(state, action)
-        q2_old_policy = self.qf_2(state, action)
-        q_value = torch.min(q1_old_policy, q2_old_policy).view(-1)
+        next_actions, log_probs = self.policy.sample_action(state)
+        log_probs = log_probs.view(-1)
+        # new policy?
+        q1_new_policy = self.qf_1(state, next_actions)
+        q2_new_policy = self.qf_2(state, next_actions)
+        q_value = torch.min(q1_new_policy, q2_new_policy).view(-1)
 
         self.value.optimizer.zero_grad()
         value_loss = 0.5 * F.mse_loss(value, (q_value - log_probs))  # EQ (5)
         value_loss.backward(retain_graph=True)
         self.value.optimizer.step()
 
-        # update both critics
+        # update q approximator
         self.qf_1.optimizer.zero_grad()
         self.qf_2.optimizer.zero_grad()
         q_hat = reward * self.reward_scale + self.gamma * target_value
-        q_hat = q_hat.unsqueeze(-1)
+
+        q1_old_policy = self.qf_1(state, action).view(-1)
+        q2_old_policy = self.qf_2(state, action).view(-1)
+
         q1_loss = 0.5 * F.mse_loss(q1_old_policy, q_hat)
         q2_loss = 0.5 * F.mse_loss(q2_old_policy, q_hat)
         q_loss = q1_loss + q2_loss
+
         q_loss.backward(retain_graph=True)
         self.qf_1.optimizer.step()
         self.qf_2.optimizer.step()
 
-        # update actor
-        self.policy.optimizer.zero_grad()
+        # use reparam trick to make the log_probs differentiable
+        # update policy
         actions, log_probs = self.policy.sample_action(state, reparam=True)
+        log_probs = log_probs.view(-1)
+
         q1_reparam_policy = self.qf_1(state, actions)
         q2_reparam_policy = self.qf_2(state, actions)
         q_value = torch.min(q1_reparam_policy, q2_reparam_policy).view(-1)
+
+        self.policy.optimizer.zero_grad()
         policy_loss = torch.mean(log_probs - q_value)
         policy_loss.backward()
         self.policy.optimizer.step()
 
-        self.update_value_target()
+        if gradient_step % self.target_update_interval == 0:
+            self.update_value_target()
+
+    def update_value_network(self):
+        self.value.optimizer.zero_grad()
 
     def update_value_target(self, tau=None):
         if tau is None:

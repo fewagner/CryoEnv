@@ -10,14 +10,6 @@ from torch.distributions.normal import Normal
 from cryoenv.agents import Agent
 
 
-# The agent
-'''
-class SAC(Agent):
-
-    def __init__(self, env, policy, value_function):
-        super(SAC, self).__init__(env, policy, value_function)
-'''
-
 class SAC:
 
     def __init__(self, alpha=3e-4, beta=3e-4, input_dims=[8], env=None, gamma=0.99, tau=0.005, n_actions=2,
