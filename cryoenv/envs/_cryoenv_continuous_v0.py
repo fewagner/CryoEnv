@@ -202,9 +202,12 @@ class CryoEnvContinuous_v0(gym.Env):
         return 1 / (1 + np.exp(-k * (T - T0)))
 
     def temperature_model(self, P_R, P_E):
-        T = (self.thermal_link_channels * self.temperature_heatbath + P_R + P_E)
-        T = np.linalg.inv(np.diag(self.thermal_link_heatbath) + self.thermal_link_channels - np.diag(
-            self.thermal_link_channels @ np.ones(self.nmbr_channels))) @ T
+        T = (self.thermal_link_heatbath * self.temperature_heatbath + P_R + P_E)
+        T = np.linalg.inv(
+                np.diag(self.thermal_link_heatbath) +
+                self.thermal_link_channels -
+                np.diag(self.thermal_link_channels@np.ones(self.nmbr_channels))
+            ) @ T
         return T.flatten()
 
     def environment_model(self, dac):
@@ -228,8 +231,9 @@ class CryoEnvContinuous_v0(gym.Env):
         if self.model_pileup_drops:
             piled_up = np.random.uniform(
                 size=self.nmbr_channels) < self.prob_pileup
-            pile_up[piled_up] = np.random.exponential(size=np.sum(piled_up),
-                                                      scale=self.env_fluctuations * 40)
+            pile_up[piled_up] =  np.random.exponential(size=np.sum(piled_up),
+                                         scale=self.env_fluctuations[piled_up] * 40)
+
         T_inj = self.temperature_model(P_R=P_R_inj,
                                        P_E=self.environment_model(dac) + P_E_long + pile_up)
         height_signal = self.sensor_model(T_inj, self.k, self.T0)
@@ -327,7 +331,7 @@ class CryoEnvContinuous_v0(gym.Env):
         # hysteresis handling
         self.T = self.temperature_model(
             P_R=future_dacs / self.heater_resistance, P_E=0)
-        self.hyst_waited[self.T > self.T_hyst_reset] += wait
+        self.hyst_waited[self.T > self.T_hyst_reset] += wait[self.T > self.T_hyst_reset]
         self.hyst[self.hyst_waited > self.hyst_wait] = False
         self.hyst[self.T < self.T_hyst] = True
         self.hyst_waited[self.T < self.T_hyst] = 0

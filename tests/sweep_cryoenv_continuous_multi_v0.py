@@ -11,6 +11,32 @@ gym.logger.set_level(40)
 
 # constants
 CONTROL_PULSE_AMPLITUDES = [50, 30, 5]
+# env_kwargs = {
+#     'V_set_iv': (0, 99),
+#     'V_set_step': 1,
+#     'ph_iv': (0, 0.99),
+#     'ph_step': 0.01,
+#     'wait_iv': (10, 50),
+#     'wait_step': 2,
+#     'heater_resistance': np.array([100.]),
+#     'thermal_link_channels': np.array([[1.]]),
+#     'thermal_link_heatbath': np.array([1.]),
+#     'temperature_heatbath': 0.,
+#     'min_ph': 0.01,
+#     'g': np.array([0.0001]),
+#     'T_hyst': np.array([0.1]),
+#     'T_hyst_reset': np.array([0.9]),
+#     'hyst_wait': np.array([50]),
+#     'control_pulse_amplitude': 50,
+#     'env_fluctuations': 0.005,
+#     'model_pileup_drops': False,
+#     'prob_drop': np.array([1e-3]),  # per second!
+#     'prob_pileup': np.array([0.2]),
+#     'save_trajectory': True,
+#     'k': np.array([15]),
+#     'T0': np.array([0.5]),
+#     'incentive_reset': 1e-1,
+# }
 
 env_kwargs = {
         'V_set_iv': (0, 99),
@@ -131,6 +157,6 @@ par2.yaxis.label.set_color(p3.get_color())
 
 fig.tight_layout()
 
-plt.savefig(fname='./results/sweep_cont.pdf')
+plt.savefig(fname='results/sweep_cont.pdf')
 
 plt.show()
