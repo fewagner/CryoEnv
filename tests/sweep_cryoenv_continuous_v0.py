@@ -1,20 +1,29 @@
 # imports
 import gym
+import ipdb
 import matplotlib.pyplot as plt
 import numpy as np
 from stable_baselines3 import A2C, SAC
 from stable_baselines3.common.env_checker import check_env
+<<<<<<< HEAD
 from cryoenv.envs._cryoenv_discrete_v0 import action_to_discrete, \
                                               observation_from_discrete
+=======
+from cryoenv.envs._cryoenv_discrete_v0 import action_to_discrete, observation_from_discrete
+from cryoenv.envs._cryoenv_continuous_v0 import CryoEnvContinuous_v0
+>>>>>>> e751f8820a02709ea8584d5792f8583a58b5edef
 
 gym.logger.set_level(40)
 
 # constants
+<<<<<<< HEAD
 CONTROL_PULSE_AMPLITUDES = [50, 30, 5]
 
+=======
+TEST_PULSE_AMPLITUDES = [50, 30, 5]
+>>>>>>> e751f8820a02709ea8584d5792f8583a58b5edef
 env_kwargs = {
-        'V_set_iv': (0, 99),
-        'V_set_step': 1,
+        'dac_iv': (0, 99),
         'ph_iv': (0, 0.99),
         'ph_step': 0.01,
         'wait_iv': (10, 50),
@@ -28,23 +37,39 @@ env_kwargs = {
         'T_hyst': np.array([0.1]),
         'T_hyst_reset': np.array([0.9]),
         'hyst_wait': np.array([50]),
-        'control_pulse_amplitude': 50,
+        'tpa': 10,
         'env_fluctuations': 0.005,
         'model_pileup_drops': True,
         'prob_drop': np.array([1e-3]),  # per second!
         'prob_pileup': np.array([0.1]),
         'save_trajectory': True,
         'k': np.array([15]),
-        'T0': np.array([0.5]),
+        'T0': 0.5,
         'incentive_reset': 1e-2,
     }
 
 # main
 
-trajectories = []
+dac_iv_steps = 100
 
-for amp in CONTROL_PULSE_AMPLITUDES:
-    env_kwargs['control_pulse_amplitude'] = amp
+nmbr_detectors = env_kwargs['k'].shape[0]
+trajectories = []*nmbr_detectors
+
+
+grid = np.arange(-0.5, 1.5, 0.01)
+set_point_pos = np.diff(
+                    CryoEnvContinuous_v0.sensor_model(
+                        CryoEnvContinuous_v0, 
+                        grid, 
+                        env_kwargs['k'], 
+                        env_kwargs['T0']
+                    ),
+                    axis=1
+                ).argmax(axis=1) 
+
+
+for amp in TEST_PULSE_AMPLITUDES:
+    env_kwargs['tpa'] = amp
 
     print('Create Environment.')
     env = gym.make('cryoenv:cryoenv-continuous-v0',
@@ -61,14 +86,19 @@ for amp in CONTROL_PULSE_AMPLITUDES:
     print('Sweep from top to bottom.')
     count = 0
     env.reset()
-    for v_s in np.arange(env_kwargs['V_set_iv'][1],
-                         env_kwargs['V_set_iv'][0] - env_kwargs['V_set_step'],
-                         - env_kwargs['V_set_step']):
-        action = np.array([[v_s, ], [10, ]]).T  # wait = 10
+
+    # sweep_grid = np.linspace(env_kwargs['dac_iv'][1],
+    #                        env_kwargs['dac_iv'][0],
+    #                        dac_iv_steps)
+
+    for v_s in np.linspace(env_kwargs['dac_iv'][1],
+                           env_kwargs['dac_iv'][0],
+                           dac_iv_steps):
+        action = np.array([v_s, 10, ]).T  # wait = 10
         # print(f'action: {action}')
         new_state, _, _, _ = env._step(action=action)
         count += 1
-
+    
     trajectories.append(env.get_trajectory())
 
 print('Plot the sensor model.')
@@ -76,7 +106,7 @@ k, T0 = env.k, env.T0
 print('k, T0: ', k, T0)
 plt.close()
 grid = np.arange(-0.5, 1.5, 0.01)
-plt.plot(grid, env.sensor_model(grid, k, T0), color='C0', linewidth=3)
+plt.plot(grid, env.sensor_model(grid, k, T0)[0], color='C0', linewidth=3)
 plt.axvline(x=0, color='black')
 plt.axvline(x=1, color='black')
 plt.title('Sensor model')
@@ -89,7 +119,7 @@ plt.show()
 # we want to see the trajectories
 print('Plot all trajectories.')
 
-rewards, dV, wait, reset, new_V_set, new_ph, T, T_inj = trajectories[0]  # low pulses
+rewards, dV, wait, reset, new_dac, new_ph, T, T_inj = trajectories[0]  # low pulses
 _, _, _, _, _, new_ph_mid, _, _ = trajectories[1]
 _, _, _, _, _, new_ph_small, _, _ = trajectories[2]
 
@@ -109,12 +139,18 @@ color1 = 'red'
 color2 = 'black'
 color3 = 'grey'
 
-p1, = host.plot(new_V_set, rewards, color=color1, label="Reward", linewidth=2, zorder=10)
-p2, = par1.plot(new_V_set, new_ph, color=color2, label="Control Pulse Height", marker='.', linestyle='', zorder=15)
-_ = par1.plot(new_V_set, new_ph_mid, color=color2, marker='.', linestyle='', zorder=15)
-_ = par1.plot(new_V_set, new_ph_small, color=color2, marker='.', linestyle='', zorder=15)
-p3, = par2.plot(new_V_set, T, color=color3, label="Simplified Temperature", linestyle='dashed', linewidth=2.5)
-_ = par2.plot(new_V_set, env.sensor_model(T, k, T0), color='C0', linewidth=3, alpha=0.5)
+new_dac = new_dac.flatten()
+new_ph = new_ph.flatten()
+new_ph_mid = new_ph_mid.flatten()
+new_ph_small = new_ph_small.flatten()
+
+
+p1, = host.plot(new_dac, rewards, color=color1, label="Reward", linewidth=2, zorder=10)
+p2, = par1.plot(new_dac, new_ph, color=color2, label="Control Pulse Height", marker='.', linestyle='', zorder=15)
+_ = par1.plot(new_dac, new_ph_mid, color=color2, marker='.', linestyle='', zorder=15)
+_ = par1.plot(new_dac, new_ph_small, color=color2, marker='.', linestyle='', zorder=15)
+p3, = par2.plot(new_dac, T, color=color3, label="Simplified Temperature", linestyle='dashed', linewidth=2.5)
+_ = par2.plot(new_dac, env.sensor_model(T, k, T0)[0], color='C0', linewidth=3, alpha=0.5)
 
 # lns = [p1, p2, p3]
 # host.legend(handles=lns, loc='best')
