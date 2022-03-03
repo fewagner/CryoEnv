@@ -102,9 +102,6 @@ class SAC:
         value_loss.backward(retain_graph=True)
         self.value.optimizer.step()
 
-        actions, log_probs = self.actor.sample_normal(state, reparam=True)
-        log_probs = log_probs.view(-1)
-
         self.critic_1.optimizer.zero_grad()
         self.critic_2.optimizer.zero_grad()
         q_hat = self.scale * reward + self.gamma*value_
@@ -118,6 +115,9 @@ class SAC:
         critic_loss.backward(retain_graph=True)
         self.critic_1.optimizer.step()
         self.critic_2.optimizer.step()
+
+        actions, log_probs = self.actor.sample_normal(state, reparam=True)
+        log_probs = log_probs.view(-1)
 
         q1_new_policy = self.critic_1.forward(state, actions)
         q2_new_policy = self.critic_2.forward(state, actions)
