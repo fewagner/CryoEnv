@@ -18,10 +18,10 @@ class SAC_v2:
                  ):
         """
         Args:
-            env: gym environment, used for training.
-            state_dim: env.observation_space.shape[0]
-            action_dim: env.action_space.shape[0]
-            tau: target update factor
+        :param    env: gym environment, used for training.
+        :param    state_dim: env.observation_space.shape[0]
+        :param    action_dim: env.action_space.shape[0]
+        :param    tau: target update factor
         """
 
         self.env = env
@@ -56,19 +56,19 @@ class SAC_v2:
         return action.detach().numpy()[0]
 
     def learn(self, episodes, episode_steps):
-        max_steps = episode_steps
-        for ep in range(episodes):
+        for ep in tqdm(range(episodes)):
             state = self.env.reset()
             done = False
             i = 0
             score = 0
-            while not done and i < max_steps:
+            while not done and i < episode_steps:
                 action = self.choose_action(state)
                 new_state, reward, done, info = self.env.step(action)
                 score += reward
                 self.buffer.store_transition(state, action, reward, new_state, done)
                 self._learn(i)
                 i += 1
+                state = new_state
             print(f'episode: {ep}, score: {score}')
 
     def _learn(self, gradient_step):

@@ -230,8 +230,8 @@ class Actor(nn.Module):
         mu = self.mu(prob)
         sigma = self.sigma(prob)
 
-        sigma = torch.sigmoid(sigma)
-        #sigma = torch.clamp(sigma, min=0.000001, max=1)
+        #sigma = torch.sigmoid(sigma)
+        sigma = torch.clamp(sigma, min=0.000001, max=1)
         return mu, sigma
 
     def sample_normal(self, state, reparam=True):
