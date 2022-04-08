@@ -9,3 +9,16 @@ register(
     id='cryoenv-discrete-v0',
     entry_point='cryoenv.envs:CryoEnvDiscrete_v0',
 )
+
+register(
+    id='cryoenv-continuous-v0',
+    entry_point='cryoenv.envs:CryoEnvContinuous_v0',
+)
+
+register(
+    id='cryoenv-model-v0',
+    entry_point='cryoenv.envs:CryoEnvModel_v0',
+)
+
+__all__ = ['agents',
+           'envs']
