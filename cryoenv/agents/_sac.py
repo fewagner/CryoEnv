@@ -1,5 +1,6 @@
 # code based on this repository: https://github.com/philtabor/Youtube-Code-Repository/tree/master/ReinforcementLearning/PolicyGradient/SAC
 from typing import List, Union, Tuple, Type
+import pickle
 
 import gym
 import torch
@@ -29,7 +30,7 @@ class SAC(Agent):
                  buffer_size: int = 1_000_000,
                  gamma: float = 0.99,
                  target_update_interval: int = 1,
-                 device: str = 'cpu') -> None:
+                 device: str = 'cpu'):
         super(SAC, self).__init__(env, policy, value_function)
         self.batch_size = batch_size
         self.lr_actor = lr_actor
@@ -91,9 +92,17 @@ class SAC(Agent):
             self.critic_1.train()
             self.critic_2.train()
 
-    def predict(self, observation) -> torch.Tensor:
+    def predict(self, observation: Union[torch.Tensor, np.ndarray]) -> torch.Tensor:
         if self.policy.training:  # set the model to evaluation mode
             self.policy.eval()
+
+        if isinstance(observation, np.ndarray):
+            observation = torch.tensor(observation).float().to(self.device)
+
+        # needs an extra batch dimension
+        if len(observation.shape) != 2:
+            observation = observation.unsqueeze(0)
+
         return self.policy(observation)
 
     def _is_training(self) -> bool:
@@ -175,11 +184,11 @@ class SAC(Agent):
         if gradient_step % self.target_update_interval == 0:
             self._update_target_value()
 
-    def _update_target_value(self, tau=None):
+    def _update_target_value(self, tau=None) -> None:
         if tau is None:
             tau = self.tau
 
-        target_value_params = self.target_value_function.named_paramaters()
+        target_value_params = self.target_value_function.named_parameters()
         value_params = self.value_function.named_parameters()
 
         target_value_state_dict = dict(target_value_params)
@@ -190,3 +199,8 @@ class SAC(Agent):
                 (1-tau) * target_value_state_dict[name].clone()
 
         self.target_value_function.load_state_dict(value_state_dict)
+
+    @classmethod
+    def load(cls, path: str) -> 'SAC':
+        with open(path, 'rb') as f:
+            return pickle.load(f)
