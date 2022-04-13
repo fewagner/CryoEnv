@@ -1,3 +1,4 @@
+# code based on this repository: https://github.com/philtabor/Youtube-Code-Repository/tree/master/ReinforcementLearning/PolicyGradient/SAC
 from typing import List, Union, Tuple, Type
 
 import gym
