@@ -2,48 +2,13 @@ import gym
 import matplotlib.pyplot as plt
 import numpy as np
 from stable_baselines3.common.env_checker import check_env
-from stable_baselines3 import A2C, SAC
-from tqdm.auto import tqdm
-from stable_baselines3.common.callbacks import BaseCallback
 
-import warnings
+from cryoenv.agents import SAC
+from cryoenv.agents.sac import Actor, Critic, ValueNetwork
 
-warnings.simplefilter('ignore')
+
 np.random.seed(0)
 gym.logger.set_level(40)
-
-
-class ProgressBarCallback(BaseCallback):
-    """
-    :param pbar: (tqdm.pbar) Progress bar object
-    """
-
-    def __init__(self, pbar):
-        super(ProgressBarCallback, self).__init__()
-        self._pbar = pbar
-
-    def _on_step(self):
-        # Update the progress bar:
-        self._pbar.n = self.num_timesteps
-        self._pbar.update(0)
-
-
-# this callback uses the 'with' block, allowing for correct initialisation and destruction
-class ProgressBarManager(object):
-    def __init__(self, total_timesteps):  # init object with total timesteps
-        self.pbar = None
-        self.total_timesteps = total_timesteps
-
-    def __enter__(self):  # create the progress bar and callback, return the callback
-        self.pbar = tqdm(total=self.total_timesteps)
-
-        return ProgressBarCallback(self.pbar)
-
-    def __exit__(self, exc_type, exc_val, exc_tb):  # close the callback
-        self.pbar.n = self.total_timesteps
-        self.pbar.update(0)
-        self.pbar.close()
-
 
 if __name__ == '__main__':
     # ------------------------------------------------
@@ -86,17 +51,13 @@ if __name__ == '__main__':
     # print('Check Environment.')
     check_env(env)
 
-    # ------------------------------------------------
-    # DEFINE AGENT PARAMETERS
-    # ------------------------------------------------
-
     nmbr_agents = 1
-    train_steps = 10000
+    train_steps = 500
     test_steps = 100
     smoothing = int(train_steps/500)
     assert train_steps % smoothing == 0, 'smoothing must be divisor of train_steps!'
     plot_axis = int(train_steps / smoothing)
-    training = True
+    training = False
     testing = True
     show = True
 
@@ -111,16 +72,13 @@ if __name__ == '__main__':
         print('Training...')
         for agent in range(nmbr_agents):
             print('Learn Agent {}:'.format(agent))
-            # model = A2C("MlpPolicy", env, verbose=False, gamma=0.6)
-            model = SAC("MlpPolicy", env, learning_rate=3e-4, verbose=False, gamma=0.6)
-            with ProgressBarManager(train_steps) as callback:
-                model.learn(total_timesteps=train_steps, callback=callback)
+            model = SAC(env, Actor, ValueNetwork, Critic)
+            model.learn(episodes = 10, episode_steps = train_steps)
             if agent == 0:
-                model.save("model_continuous")
+                model.save("sac_agent.pkl")
             rew, _, _, _, _, _, _, _, = env.get_trajectory()
             training_rewards[agent, :] = np.mean(rew.reshape(-1, smoothing), axis=1)
             env.reset()
-            del model
 
         # ------------------------------------------------
         # TRAINING PLOT
@@ -144,22 +102,15 @@ if __name__ == '__main__':
         host.yaxis.label.set_color(p1.get_color())
 
         fig.tight_layout()
-        fig.suptitle('CryoEnvContinuous v0: Training')
-        plt.savefig(fname='results/training_cont.pdf')
+        fig.suptitle('CryoEnvContinuous v0 SAC: Training')
+        plt.savefig(fname='results/training_sac.pdf')
 
         if show:
             plt.show()
 
     if testing:
-        # ------------------------------------------------
-        # TESTING
-        # ------------------------------------------------
-
-        # Q = np.load("q_table_ep" + str(ep) + "_ag" + str(ag) + ".npy")
-
         print('Testing...')
-        # model = A2C.load("model_continuous")
-        model = SAC.load("model_continuous.zip")
+        model = SAC.load("sac_agent.pkl")
         obs = env.reset()
         for i in range(test_steps):
             action, _states = model.predict(obs)
@@ -202,7 +153,7 @@ if __name__ == '__main__':
 
         fig.tight_layout()
 
-        plt.title('CryoEnvContinuous v0: Test Trajectories')
+        plt.title('CryoEnvContinuous v0 SAC: Test Trajectories')
 
         if show:
             plt.show()
