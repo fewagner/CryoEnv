@@ -38,8 +38,10 @@ class Agent:
     # These below need to be implemented in children!
     # ---------------------------------------------------------------
 
-    def learn(self, nmbr_steps, learning_rate, discounting_factor, **kwargs):
-        """
-        We perform nmbr_steps with the agent on the environment and update the value function and policy.
-        """
+    # def learn(self, nmbr_steps, learning_rate, discounting_factor, **kwargs):
+        # """
+        # We perform nmbr_steps with the agent on the environment and update the value function and policy.
+        # """
+        # raise NotImplementedError
+    def learn(self):
         raise NotImplementedError

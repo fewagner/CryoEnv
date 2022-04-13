@@ -8,7 +8,7 @@ import numpy as np
 from tqdm import tqdm
 
 from cryoenv.base import Agent, Policy, ValueFunction
-from cryoenv.buffers import ReplayBuffer
+from cryoenv.buffers import ReplayBuffer, Buffer
 from cryoenv.agents.sac import Actor, ValueNetwork, Critic
 
 
@@ -18,7 +18,7 @@ class SAC(Agent):
                  env: gym.Env, policy: Type[Actor],
                  value_function: Type[ValueNetwork],
                  soft_q: Type[Critic],
-                 buffer = None,
+                 buffer: Buffer = None,
                  batch_size: int = 256,
                  lr_actor: float = 3e-4,
                  lr_critic: float = 3e-4,
@@ -46,6 +46,8 @@ class SAC(Agent):
         self.target_value_function = value_function(lr=self.lr_value_func)
         self.critic_1 = soft_q(self.lr_critic)
         self.critic_2 = soft_q(self.lr_critic)
+
+        self.buffer: Buffer
         if buffer is None:
             self.buffer = ReplayBuffer(buffer_size, (self.nmbr_observations,), self.nmbr_actions)
         else:
@@ -54,7 +56,7 @@ class SAC(Agent):
         self.device = device
         self.define_spaces()
 
-    def learn(self, episodes, episode_steps) -> None:
+    def learn(self, episodes: int = 1, episode_steps: int = 100) -> None:
         self.train()
         pbar = tqdm(range(episodes))
         for episode in pbar:
@@ -104,8 +106,8 @@ class SAC(Agent):
             return False
 
     def _choose_action(self, observation: Union[list, np.ndarray]) -> torch.Tensor:
-        observation = torch.tensor(np.array([observation])).float().to(self.device)
-        action, _ = self.policy.predict(observation)
+        obs_tensor = torch.tensor(np.array([observation])).float().to(self.device)
+        action, _ = self.policy.predict(obs_tensor)
         return action
 
     def _learn_step(self, gradient_step: int = 1) -> None:

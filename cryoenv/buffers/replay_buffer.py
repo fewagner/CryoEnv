@@ -1,8 +1,10 @@
 from typing import Tuple
 import numpy as np
 
+from .buffer import Buffer
 
-class ReplayBuffer:
+
+class ReplayBuffer(Buffer):
 
     def __init__(self, max_size: int, input_shape: Tuple[int], n_actions: int) -> None:
         self.mem_size = max_size
