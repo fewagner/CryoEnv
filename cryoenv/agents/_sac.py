@@ -1,4 +1,5 @@
 # code based on this repository: https://github.com/philtabor/Youtube-Code-Repository/tree/master/ReinforcementLearning/PolicyGradient/SAC
+from __future__ import annotations
 from typing import List, Union, Tuple, Type
 import pickle
 
@@ -42,11 +43,13 @@ class SAC(Agent):
         self.gamma = gamma
         self.target_update_interval = target_update_interval
 
-        self.policy = policy(lr=self.lr_actor)
-        self.value_function = value_function(lr=self.lr_value_func)
-        self.target_value_function = value_function(lr=self.lr_value_func)
-        self.critic_1 = soft_q(self.lr_critic)
-        self.critic_2 = soft_q(self.lr_critic)
+        # TODO: pass the instance, not the class
+        self.device = device
+        self.policy = policy(lr=self.lr_actor, device=self.device)
+        self.value_function = value_function(lr=self.lr_value_func, device=self.device)
+        self.target_value_function = value_function(lr=self.lr_value_func, device=self.device)
+        self.critic_1 = soft_q(self.lr_critic, device=self.device)
+        self.critic_2 = soft_q(self.lr_critic, device=self.device)
 
         self.buffer: Buffer
         if buffer is None:
@@ -54,7 +57,6 @@ class SAC(Agent):
         else:
             self.buffer = buffer
 
-        self.device = device
         self.define_spaces()
 
     def learn(self, episodes: int = 1, episode_steps: int = 100) -> None:
@@ -66,7 +68,7 @@ class SAC(Agent):
             i = 0
             score = 0
             while not done and i < episode_steps:
-                action = self._choose_action(observation)
+                action = self._choose_action(observation).cpu()
                 new_observation, reward, done, info = self.env.step(action)
                 score += reward
                 self.buffer.store_transition(observation, action, reward, new_observation, done)
@@ -201,6 +203,6 @@ class SAC(Agent):
         self.target_value_function.load_state_dict(value_state_dict)
 
     @classmethod
-    def load(cls, path: str) -> 'SAC':
+    def load(cls, path: str) -> SAC:
         with open(path, 'rb') as f:
             return pickle.load(f)
