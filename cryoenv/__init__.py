@@ -16,9 +16,10 @@ register(
 )
 
 register(
-    id='cryoenv-model-v0',
-    entry_point='cryoenv.envs:CryoEnvModel_v0',
+    id='cryoenv-sig-v0',
+    entry_point='cryoenv.envs:CryoEnvSigWrapper',
 )
 
 __all__ = ['agents',
-           'envs']
+           'envs',
+           'cryosig']
