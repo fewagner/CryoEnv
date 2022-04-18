@@ -2,12 +2,22 @@
 CryoEnv
 *******************
 
-A reinforcement learning environment for detector optimization.
+![](logo/run.gif)
 
-Correspondence to: daniel.bartolot@oeaw.ac.at, felix.wagner@oeaw.ac.at
+A reinforcement learning environment for detector optimization. Simulation of cryogenic detectors from first principles.
 
+Correspondence to: felix.wagner@oeaw.ac.at
 
-# Usefull Resources
-[Stock-Trading-Environment](https://github.com/notadamking/Stock-Trading-Environment)<br>
-[Animated Matplotlib Graphs](https://ndres.me/post/matplotlib-animated-gifs-easily/)<br>
-[Shower-Enviroment](https://github.com/nicknochnack/OpenAI-Reinforcement-Learning-with-Custom-Environment/blob/main/OpenAI%20Custom%20Environment%20Reinforcement%20Learning.ipynb)
+### Usage:
+
+Try the scripts ...
+
+`tests/test_cryosig.py`
+
+`tests/test_cryosweep.py`
+
+`tests/train_cryosig.py`
+
+`tests/run_cryosig.py`
+
+... most of them have a helper in the command line argument handler.
