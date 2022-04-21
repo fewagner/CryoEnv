@@ -14,8 +14,9 @@ class Agent:
         self.nmbr_observations = self.observation_space.shape[0]
 
         # define action and observations for policy and value function
-        self.value_function.define_spaces(self.action_space, self.observation_space)
-        self.policy.define_spaces(self.action_space, self.observation_space, self.value_function)
+        # TODO: maybe move this to it's own method, so this can be implemented by children?
+        #self.value_function.define_spaces(self.action_space, self.observation_space)
+        #self.policy.define_spaces(self.action_space, self.observation_space, self.value_function)
 
     def __call__(self, *args, **kwargs):
         return self.predict(*args, **kwargs)
@@ -37,8 +38,10 @@ class Agent:
     # These below need to be implemented in children!
     # ---------------------------------------------------------------
 
-    def learn(self, nmbr_steps, learning_rate, discounting_factor, **kwargs):
-        """
-        We perform nmbr_steps with the agent on the environment and update the value function and policy.
-        """
+    # def learn(self, nmbr_steps, learning_rate, discounting_factor, **kwargs):
+        # """
+        # We perform nmbr_steps with the agent on the environment and update the value function and policy.
+        # """
+        # raise NotImplementedError
+    def learn(self):
         raise NotImplementedError

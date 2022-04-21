@@ -144,3 +144,4 @@ cython_debug/
 /venv/
 /info/
 /data/
+.DS_Store
