@@ -71,7 +71,8 @@ def sample_parameters(**kwargs):
         "Ib_ramping_speed": np.array([5e-3]),  # muA / s
         "xi": 1,  # squid conversion current to voltage, V / muA
         "i_sq": np.array([2 * 1e-12]),  # squid noise, A / sqrt(Hz)
-        "tes_fluct": np.random.uniform(1e-4, 5e-3, size=[1]),  # percent
+        "tes_fluct": np.random.uniform(1e-4, 5e-4, size=[1]),  # percent
+        "emi": np.random.uniform(1e-10, 5e-10, size=[1]),  # percent
         "lowpass": 1e4,  # Hz
         "Tb": lambda x: Tb,  # function that takes one positional argument t, returns Tb
         "Rt": Rt(k, Tc, Rt0, a, b),

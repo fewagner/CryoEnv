@@ -26,7 +26,7 @@ class CryoEnvSigWrapper(gym.Env):
         if sample_pars:
             self.pars = sample_parameters(**self.pars)
         self.detector = DetectorModule(**self.pars)
-        self.nmbr_actions = self.detector.nmbr_tes + self.detector.nmbr_heater
+        self.nmbr_actions = self.detector.nmbr_heater + self.detector.nmbr_tes
         self.nmbr_observations = 2 * self.detector.nmbr_tes + self.detector.nmbr_heater
         self.ntes = self.detector.nmbr_tes
         self.nheater = self.detector.nmbr_heater
