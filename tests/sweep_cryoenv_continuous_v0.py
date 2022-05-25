@@ -5,67 +5,57 @@ import matplotlib.pyplot as plt
 import numpy as np
 from stable_baselines3 import A2C, SAC
 from stable_baselines3.common.env_checker import check_env
-<<<<<<< HEAD
-from cryoenv.envs._cryoenv_discrete_v0 import action_to_discrete, \
-                                              observation_from_discrete
-=======
 from cryoenv.envs._cryoenv_discrete_v0 import action_to_discrete, observation_from_discrete
 from cryoenv.envs._cryoenv_continuous_v0 import CryoEnvContinuous_v0
->>>>>>> e751f8820a02709ea8584d5792f8583a58b5edef
 
 gym.logger.set_level(40)
 
 # constants
-<<<<<<< HEAD
-CONTROL_PULSE_AMPLITUDES = [50, 30, 5]
-
-=======
 TEST_PULSE_AMPLITUDES = [50, 30, 5]
->>>>>>> e751f8820a02709ea8584d5792f8583a58b5edef
 env_kwargs = {
-        'dac_iv': (0, 99),
-        'ph_iv': (0, 0.99),
-        'ph_step': 0.01,
-        'wait_iv': (10, 50),
-        'wait_step': 2,
-        'heater_resistance': np.array([100.]),
-        'thermal_link_channels': np.array([[1.]]),
-        'thermal_link_heatbath': np.array([1.]),
-        'temperature_heatbath': 0.,
-        'min_ph': 0.01,
-        'g': np.array([0.0001]),
-        'T_hyst': np.array([0.1]),
-        'T_hyst_reset': np.array([0.9]),
-        'hyst_wait': np.array([50]),
-        'tpa': 10,
-        'env_fluctuations': 0.005,
-        'model_pileup_drops': True,
-        'prob_drop': np.array([1e-3]),  # per second!
-        'prob_pileup': np.array([0.1]),
-        'save_trajectory': True,
-        'k': np.array([15]),
-        'T0': 0.5,
-        'incentive_reset': 1e-2,
-    }
+    'dac_iv': (0, 99),
+    'ph_iv': (0, 0.99),
+    'ph_step': 0.01,
+    'wait_iv': (10, 50),
+    'wait_step': 2,
+    'heater_resistance': np.array([100.]),
+    'thermal_link_channels': np.array([[1.]]),
+    'thermal_link_heatbath': np.array([1.]),
+    'temperature_heatbath': 0.,
+    'min_ph': 0.01,
+    'g': np.array([0.0001]),
+    'T_hyst': np.array([0.1]),
+    'T_hyst_reset': np.array([0.9]),
+    'hyst_wait': np.array([50]),
+    'tpa': 10,
+    'env_fluctuations': 0.005,
+    'model_pileup_drops': True,
+    'prob_drop': np.array([1e-3]),  # per second!
+    'prob_pileup': np.array([0.1]),
+    'save_trajectory': True,
+    'k': np.array([15]),
+    'T0': 0.5,
+    'incentive_reset': 1e-2,
+}
 
 # main
 
 dac_iv_steps = 100
 
 nmbr_detectors = env_kwargs['k'].shape[0]
-trajectories = []*nmbr_detectors
+trajectories = [] * nmbr_detectors
 
 
 grid = np.arange(-0.5, 1.5, 0.01)
 set_point_pos = np.diff(
-                    CryoEnvContinuous_v0.sensor_model(
-                        CryoEnvContinuous_v0, 
-                        grid, 
-                        env_kwargs['k'], 
-                        env_kwargs['T0']
-                    ),
-                    axis=1
-                ).argmax(axis=1) 
+    CryoEnvContinuous_v0.sensor_model(
+        CryoEnvContinuous_v0,
+        grid,
+        env_kwargs['k'],
+        env_kwargs['T0']
+    ),
+    axis=1
+).argmax(axis=1)
 
 
 for amp in TEST_PULSE_AMPLITUDES:
@@ -80,6 +70,7 @@ for amp in TEST_PULSE_AMPLITUDES:
     print("Exemplary State {}".format(obs))
     print("Exemplary State denormed {}".format(env.denorm_state(obs)))
 
+    # ipdb.set_trace()
     # print('Check Environment.')
     check_env(env)
 
@@ -96,9 +87,9 @@ for amp in TEST_PULSE_AMPLITUDES:
                            dac_iv_steps):
         action = np.array([v_s, 10, ]).T  # wait = 10
         # print(f'action: {action}')
-        new_state, _, _, _ = env._step(action=action)
+        new_state, _, _, _ = env.step(action=env.norm_action(action))
         count += 1
-    
+
     trajectories.append(env.get_trajectory())
 
 print('Plot the sensor model.')
@@ -119,7 +110,8 @@ plt.show()
 # we want to see the trajectories
 print('Plot all trajectories.')
 
-rewards, dV, wait, reset, new_dac, new_ph, T, T_inj = trajectories[0]  # low pulses
+# low pulses
+rewards, dV, wait, reset, new_dac, new_ph, T, T_inj = trajectories[0]
 _, _, _, _, _, new_ph_mid, _, _ = trajectories[1]
 _, _, _, _, _, new_ph_small, _, _ = trajectories[2]
 
@@ -145,12 +137,18 @@ new_ph_mid = new_ph_mid.flatten()
 new_ph_small = new_ph_small.flatten()
 
 
-p1, = host.plot(new_dac, rewards, color=color1, label="Reward", linewidth=2, zorder=10)
-p2, = par1.plot(new_dac, new_ph, color=color2, label="Control Pulse Height", marker='.', linestyle='', zorder=15)
-_ = par1.plot(new_dac, new_ph_mid, color=color2, marker='.', linestyle='', zorder=15)
-_ = par1.plot(new_dac, new_ph_small, color=color2, marker='.', linestyle='', zorder=15)
-p3, = par2.plot(new_dac, T, color=color3, label="Simplified Temperature", linestyle='dashed', linewidth=2.5)
-_ = par2.plot(new_dac, env.sensor_model(T, k, T0)[0], color='C0', linewidth=3, alpha=0.5)
+p1, = host.plot(new_dac, rewards, color=color1,
+                label="Reward", linewidth=2, zorder=10)
+p2, = par1.plot(new_dac, new_ph, color=color2,
+                label="Control Pulse Height", marker='.', linestyle='', zorder=15)
+_ = par1.plot(new_dac, new_ph_mid, color=color2,
+              marker='.', linestyle='', zorder=15)
+_ = par1.plot(new_dac, new_ph_small, color=color2,
+              marker='.', linestyle='', zorder=15)
+p3, = par2.plot(new_dac, T, color=color3,
+                label="Simplified Temperature", linestyle='dashed', linewidth=2.5)
+_ = par2.plot(new_dac, env.sensor_model(T, k, T0)[
+              0], color='C0', linewidth=3, alpha=0.5)
 
 # lns = [p1, p2, p3]
 # host.legend(handles=lns, loc='best')

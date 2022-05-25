@@ -29,6 +29,7 @@ class CryoEnvContinuous_v0(gym.Env):
 
     metadata = {'render.modes': ['human']}
     counter = 0
+
     def __init__(self,
                  dac_iv=(0., 99.),  # first action
                  wait_iv=(2., 100.),  # secound action
@@ -49,7 +50,7 @@ class CryoEnvContinuous_v0(gym.Env):
                  prob_pileup=np.array([0.1]),
                  save_trajectory=False,
                  k: np.ndarray = None,  # logistic curve parameters
-                 T0: np.ndarray = None, # Heat bath coupling
+                 T0: np.ndarray = None,  # Heat bath coupling
                  incentive_reset=0,
                  **kwargs,
                  ):
@@ -133,18 +134,18 @@ class CryoEnvContinuous_v0(gym.Env):
         #                                     high=observation_high.reshape(-1),
         #                                     dtype=np.float32)
 
-        self.action_space = spaces.Box(low = -np.ones(self.nmbr_actions*self.nmbr_channels),
-                                       high = np.ones(self.nmbr_actions*self.nmbr_channels),
-                                       dtype = np.float32)
-        self.observation_space = spaces.Box(low = -np.ones(self.nmbr_observations*self.nmbr_channels),
-                                            high = np.ones(self.nmbr_observations*self.nmbr_channels),
-                                            dtype = np.float32)
+        self.action_space = spaces.Box(low=-np.ones(self.nmbr_actions * self.nmbr_channels),
+                                       high=np.ones(
+                                           self.nmbr_actions * self.nmbr_channels))
+        self.observation_space = spaces.Box(low=-np.ones(self.nmbr_observations * self.nmbr_channels),
+                                            high=np.ones(
+                                                self.nmbr_observations * self.nmbr_channels))
 
         # environment parameters
         self.heater_resistance = np.array(heater_resistance)
         self.thermal_link_channels = np.array(thermal_link_channels)
-        self.thermal_link_heatbath = np.array(thermal_link_heatbath)
         self.temperature_heatbath = np.array(temperature_heatbath)
+        self.thermal_link_heatbath = np.array(thermal_link_heatbath)
         self.g = np.full(self.nmbr_channels, g)
         self.T_hyst = np.full(self.nmbr_channels, T_hyst)
         self.tpa = np.full(self.nmbr_channels, tpa)
@@ -188,7 +189,6 @@ class CryoEnvContinuous_v0(gym.Env):
         self.save_trajectory = save_trajectory
         self.reset_trajectories()
 
-
     def reset_trajectories(self):
         self.rewards_trajectory = []
         self.V_decrease_trajectory = []
@@ -205,43 +205,41 @@ class CryoEnvContinuous_v0(gym.Env):
         k = np.array(k)
         if k.shape == ():
             k = k.reshape(1)
-        
+
         T = np.array(T)
         if T.shape == ():
             T = T.reshape(1)
-        
+
         # if self.counter == 2045:
         #     import ipdb; ipdb.set_trace()
-        self.counter = self.counter+1
+        self.counter = self.counter + 1
         # print("sensor model: ", self.counter)
         # print("k",k.shape,":", k)
-        dT = (T-T0).T
+        dT = (T - T0).T
         # print("T-T0",(dT).shape,":", dT)
-        
-        ret =  1 / (1 + np.exp(-
-                    np.multiply(
-                        k.reshape(k.shape[0],1),  
-                        dT
-                    )
-                ))
+
+        ret = 1 / (1 + np.exp(-
+                              np.multiply(
+                                  k.reshape(k.shape[0], 1),
+                                  dT
+                              )
+                              ))
         # print("ret: ", ret)
         return ret
 
     def temperature_model(self, P_R, P_E):
         T = (self.thermal_link_heatbath * self.temperature_heatbath + P_R + P_E)
         T = np.linalg.inv(
-                np.diag(self.thermal_link_heatbath) +
-                self.thermal_link_channels -
-                np.diag(self.thermal_link_channels@np.ones(self.nmbr_channels))
-            ) @ T
-<<<<<<< HEAD
-        return T.flatten()
-=======
-        return T#.flatten()
->>>>>>> e751f8820a02709ea8584d5792f8583a58b5edef
+            np.diag(self.thermal_link_heatbath)
+            + self.thermal_link_channels
+            - np.diag(self.thermal_link_channels @ np.ones(self.nmbr_channels))
+        ) @ T
+        return T  # .flatten()
 
     def environment_model(self, dac):
-        return np.random.normal(loc=0, scale=self.env_fluctuations, size=self.nmbr_channels)
+        return np.random.normal(loc=0,
+                                scale=self.env_fluctuations,
+                                size=self.nmbr_channels)
 
     def get_pulse_height(self, dac):
         # get long scale environment fluctuations - we also get short scale fluctuations further down
@@ -261,8 +259,8 @@ class CryoEnvContinuous_v0(gym.Env):
         if self.model_pileup_drops:
             piled_up = np.random.uniform(
                 size=self.nmbr_channels) < self.prob_pileup
-            pile_up[piled_up] =  np.random.exponential(size=np.sum(piled_up),
-                                         scale=self.env_fluctuations[piled_up] * 40)
+            pile_up[piled_up] = np.random.exponential(size=np.sum(piled_up),
+                                                      scale=self.env_fluctuations[piled_up] * 40)
 
         T_inj = self.temperature_model(P_R=P_R_inj,
                                        P_E=self.environment_model(dac) + P_E_long + pile_up)
@@ -311,8 +309,8 @@ class CryoEnvContinuous_v0(gym.Env):
 
     def norm_action(self, action):
         normed_action = np.copy(action)
-        normed_action[0::2] = 2 * (normed_action[0::2] - self.dac_iv[:, 0]) / self.dac_iv[:,
-                                                                                          1] - 1  # norm the v sets
+        normed_action[0::2] = 2 * (normed_action[0::2] - self.dac_iv[:, 0]
+                                   ) / self.dac_iv[:, 1] - 1  # norm the v sets
         normed_action[1::2] = 2 * (normed_action[1::2] - self.wait_iv[:, 0]
                                    ) / self.wait_iv[:, 1] - 1  # norm the waits
         return normed_action
@@ -351,7 +349,7 @@ class CryoEnvContinuous_v0(gym.Env):
         # unpack action
         future_dacs, wait = action.reshape(
             (self.nmbr_channels, self.nmbr_actions)).T
-        
+
         # unpack current state
         dacs, phs = self.state.reshape(
             (self.nmbr_channels, self.nmbr_observations)).T
@@ -362,14 +360,11 @@ class CryoEnvContinuous_v0(gym.Env):
                         ] = self.dac_iv[future_dacs < self.dac_iv[:, 0]][0]
 
         # hysteresis handling
-<<<<<<< HEAD
-        self.T = self.temperature_model(
-            P_R=future_dacs / self.heater_resistance, P_E=0)
-=======
-        self.T = self.temperature_model(P_R=future_dacs / self.heater_resistance, 
+
+        self.T = self.temperature_model(P_R=future_dacs / self.heater_resistance,
                                         P_E=0)
->>>>>>> e751f8820a02709ea8584d5792f8583a58b5edef
-        self.hyst_waited[self.T > self.T_hyst_reset] += wait[self.T > self.T_hyst_reset]
+        self.hyst_waited[self.T
+                         > self.T_hyst_reset] += wait[self.T > self.T_hyst_reset]
         self.hyst[self.hyst_waited > self.hyst_wait] = False
         self.hyst[self.T < self.T_hyst] = True
         self.hyst_waited[self.T < self.T_hyst] = 0
@@ -386,7 +381,8 @@ class CryoEnvContinuous_v0(gym.Env):
         # import ipdb;ipdb.set_trace()
 
         # pack new_state
-        new_state = np.array([future_dacs, future_phs], dtype=object).T.reshape(-1)
+        new_state = np.array([future_dacs, future_phs],
+                             dtype=np.float32).T.reshape(-1)
 
         # get the reward
         reward = self.reward(new_state, action)
@@ -414,9 +410,9 @@ class CryoEnvContinuous_v0(gym.Env):
 
     def reset(self):
         future_dacs = self.dac_iv[:, 1]
-        # import ipdb; ipdb.set_trace()
         future_phs, _, _ = self.get_pulse_height(future_dacs)
-        self.state = np.array([future_dacs, future_phs], dtype=object).T.reshape(-1)
+        self.state = np.array([future_dacs, future_phs],
+                              dtype=np.float32).T.reshape(-1)
         self.hyst = np.full(self.nmbr_channels, False)
         self.hyst_waited = np.zeros(self.nmbr_channels)
         self.reset_trajectories()
