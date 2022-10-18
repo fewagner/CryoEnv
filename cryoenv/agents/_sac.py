@@ -103,7 +103,7 @@ class SAC:
                 next_state, reward, done, info = self.env.step(action)
                 score += reward
                 self.buffer.store_transition(state, action, reward, next_state, done)
-                self._learn_step(episode, gradient_step=i, writer=None)
+                self._learn_step(episode, gradient_step=i, writer=writer)
                 state = next_state
                 self.total_num_steps += 1
                 pbar.set_description(f"episode: {episode}, score: {score:.4f}")

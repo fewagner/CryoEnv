@@ -6,6 +6,7 @@ from stable_baselines3.common.env_checker import check_env
 from tqdm.auto import tqdm
 from stable_baselines3.common.callbacks import BaseCallback
 from cryoenv.agents import SAC
+from torch.utils.tensorboard import SummaryWriter
 
 import warnings
 
@@ -102,6 +103,8 @@ if __name__ == '__main__':
     show = True
     ts = int(time.time())
     model_path = f'sac_{ts}_test'
+    writer = SummaryWriter(f'runs/{model_path}')
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     # Creating lists to keep track of reward and epsilon values
     training_rewards = np.empty((nmbr_agents, plot_axis), dtype=float)
@@ -115,8 +118,8 @@ if __name__ == '__main__':
         for agent in range(nmbr_agents):
             print('Learn Agent {}:'.format(agent))
             # model = A2C("MlpPolicy", env, verbose=False, gamma=0.6)
-            model = SAC(env)
-            model.learn(episodes=2, episode_steps=1000)
+            model = SAC(env, device)
+            model.learn(episodes=2, episode_steps=train_steps, writer=writer)
             if agent == 0:
                 model.save(model_path)
             rew, _, _, _, _, _, _, _, = env.get_trajectory()
@@ -161,7 +164,7 @@ if __name__ == '__main__':
 
         print('Testing...')
         # model = A2C.load("model_continuous")
-        model = SAC.load(env, model_path)
+        model = SAC.load(env, model_path, device=device)
         obs = env.reset()
         for i in range(test_steps):
             action = model.predict(obs)
