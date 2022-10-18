@@ -6,6 +6,7 @@ from stable_baselines3.common.env_checker import check_env
 from tqdm.auto import tqdm
 from stable_baselines3.common.callbacks import BaseCallback
 from cryoenv.agents import SAC
+import torch
 from torch.utils.tensorboard import SummaryWriter
 
 import warnings
