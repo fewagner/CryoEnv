@@ -346,8 +346,11 @@ class CryoEnvContinuous_v0(gym.Env):
 
         return new_state, reward, done, info
 
-    def reset(self):
-        future_V_sets = self.V_set_iv[:, 1]
+    def reset(self, is_training: bool = False):
+        if is_training:
+            future_V_sets = np.random.randint(self.V_set_iv[:, 0], self.V_set_iv[:, 1])
+        else:
+            future_V_sets = self.V_set_iv[:, 1]
         future_phs, _, _ = self.get_pulse_height(future_V_sets)
         self.state = np.array([future_V_sets, future_phs]).T.reshape(-1)
         self.hyst = np.full(self.nmbr_channels, False)
