@@ -16,8 +16,14 @@ Try the scripts ...
 
 `tests/test_cryosweep.py`
 
-`tests/train_cryosig.py`
+.. and for training a SBL3 SAC agent ...
 
-`tests/run_cryosig.py`
+`tests/train_wrapper.py`
+
+`tests/run_wrapper.py`
 
 ... most of them have a helper in the command line argument handler.
+
+Test our own implementation of a SAC agent with:
+
+`tests/cryoenv_continuous_v0_sac.py`
