@@ -836,15 +836,16 @@ class DetectorModule:
         TODO
         """
         self.offset = np.mean(self.squid_out_noise[self.t < self.t0], axis=0)
-        self.ph = np.max(self.squid_out_noise - self.offset, axis=0)
+        self.ph = np.max(self.squid_out_noise[self.t >= self.t0] - self.offset, axis=0)
         self.rms = np.std(self.squid_out_noise[self.t < self.t0] - self.offset, axis=0)
 
     def calc_par_(self):  # TODO make work with more components/tes/heaters
         """
         TODO
+        not used at this point
         """
         self.offset = np.mean(self.Il[:, self.t < self.t0], axis=1)
-        self.ph = np.max(self.Il - self.offset, axis=1)
+        self.ph = np.max(self.Il[:, self.t >= self.t0] - self.offset, axis=1)
         self.rms = np.std(self.Il[:, self.t < self.t0], axis=1)
 
     def append_buffer(self):
