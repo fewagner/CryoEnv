@@ -20,7 +20,7 @@ class DetectorModule:
     def __init__(self,
                  record_length=16384,
                  sample_frequency=25000,
-                 C=np.array([5e-5, 5e-4]),  # pJ / mK
+                 C=None,  # pJ / mK, is defined later bec mutable
                  Gb=np.array([5e-3, 5e-3]),  # pW / mK
                  G=np.array([[0., 1e-3], [1e-3, 0.], ]),  # heat cond between components, pW / mK
                  lamb=0.003,  # thermalization time (s)
@@ -47,7 +47,8 @@ class DetectorModule:
                  Ib_ramping_speed=np.array([5e-3]),  # muA / s
                  xi=1.,  # squid conversion current to voltage, V / muA
                  i_sq=np.array([2 * 1e-12]),  # squid noise, A / sqrt(Hz)
-                 tes_fluct=np.array([2e-3]),  # percent
+                 tes_fluct=np.array([5e-4]),  # ??
+                 emi=np.array([2e-10]),  # ??
                  lowpass=1e4,  # Hz
                  Tb=None,  # function that takes one positional argument t, returns Tb
                  Rt=None,  # function that takes one positional argument T, returns Rt
@@ -58,14 +59,15 @@ class DetectorModule:
                  ):
 
         # TODO fix for multiple channels
-        # TODO plot instable regions in DAC/Ib
-        # TODO absorber & heater noise
         # TODO temp dependence couplings and capacities
+        # TODO test with drifts
+        # TODO lstm agent
 
-        # TODO! Gym wrapper
-        # TODO! test case with SAC agent
+        if C is None:
+            self.C = np.array([5e-5, 5e-4])
+        else:
+            self.C = C
 
-        self.C = C
         self.Gb = Gb
         self.G = G
         self.lamb = lamb
@@ -95,6 +97,7 @@ class DetectorModule:
         self.xi = xi
         self.i_sq = i_sq
         self.tes_fluct = tes_fluct
+        self.emi = emi
         self.lowpass = lowpass
         if Tb is not None:
             self.Tb = Tb
@@ -110,6 +113,9 @@ class DetectorModule:
         self.nmbr_tes = len(self.Rs)
         self.nmbr_heater = len(self.Rh)
         self.t = np.arange(0, record_length / sample_frequency, 1 / sample_frequency)  # s
+        self.power_freq = (1e3 + np.abs(np.fft.rfft(np.sin(2 * np.pi * self.t * 50) +
+                                                   0.5 * np.sin(2 * np.pi * self.t * 100) +
+                                                   0.33 * np.sin(2 * np.pi * self.t * 150)))) ** 2
         self.t0_idx = np.searchsorted(self.t, self.t0)
         self.tpa_idx = 0
         self.timer = 0
@@ -150,8 +156,10 @@ class DetectorModule:
         if norm:
             if name in ['ph', 'rms', 'offset']:
                 value = self.norm(value, self.adc_range)
+            if name == 'Ib':
+                value = self.norm(value, self.Ib_range)
             else:
-                value = self.norm(value, eval('self.' + name + '_range'))
+                value = self.norm(value, self.dac_range)
         return value
 
     def get_buffer(self, name):
@@ -162,7 +170,10 @@ class DetectorModule:
 
     def get_record(self):
         """
-        TODO
+        Get the squid output record window.
+
+        :return: The output of the squids, in shape (nmbr_tes, record_length).
+        :rtype: numpy array
         """
         return np.array(self.squid_out_noise)
 
@@ -191,7 +202,8 @@ class DetectorModule:
             TIb = odeint(self.dTdItdt,
                          np.concatenate((self.T[-1, :], self.It[-1].reshape(-1))),
                          self.t, args=(
-                    self.C, self.Gb, self.Tb, self.G, self.P, self.Rs, self.Ib, self.Rt, self.L, self.tes_flag),
+                    self.C, self.Gb, self.Tb, self.G, self.P, self.Rs, self.Ib, self.Rt, self.L, self.tes_flag,
+                    self.timer),
                          tfirst=True,
                          )
 
@@ -221,7 +233,8 @@ class DetectorModule:
         TIb = odeint(func=self.dTdItdt,
                      y0=np.concatenate((self.T[-1, :], self.It[-1].reshape(-1))),
                      t=self.t,
-                     args=(self.C, self.Gb, self.Tb, self.G, self.P, self.Rs, self.Ib, self.Rt, self.L, self.tes_flag),
+                     args=(self.C, self.Gb, self.Tb, self.G, self.P, self.Rs, self.Ib, self.Rt, self.L, self.tes_flag,
+                           self.timer),
                      tcrit=np.linspace(self.t0, self.t0 + self.record_length / 8 / self.sample_frequency, 10),
                      tfirst=True,
                      )
@@ -394,7 +407,7 @@ class DetectorModule:
         else:
             return fig, axes
 
-    def plot_nps(self, channel=0):
+    def plot_nps(self, channel=0, only_sum=False):
         """
         TODO
         """
@@ -408,21 +421,25 @@ class DetectorModule:
         w, nps = self.get_nps(Tt, It, t_ch)
         ax.loglog(w, 1e6 * np.sqrt(nps), label='combined', linewidth=2, color='black', zorder=10)
 
-        w = np.logspace(np.log10(np.min(w[w > 0])), np.log10(np.max(w)))
-        nps = self.thermal_noise(w, Tt, It, t_ch)
-        ax.loglog(w, 1e6 * np.sqrt(nps), label='Thermal noise', linewidth=2)
+        if not only_sum:
+            w = np.logspace(np.log10(np.min(w[w > 0])), np.log10(np.max(w)))
+            nps = self.thermal_noise(w, Tt, It, t_ch)
+            ax.loglog(w, 1e6 * np.sqrt(nps), label='Thermal noise', linewidth=2)
 
-        nps[w > 0] = self.thermometer_johnson(w, Tt, It, t_ch)
-        ax.loglog(w, 1e6 * np.sqrt(nps), label='Thermometer johnson', linewidth=2)
+            nps[w > 0] = self.thermometer_johnson(w, Tt, It, t_ch)
+            ax.loglog(w, 1e6 * np.sqrt(nps), label='Thermometer johnson', linewidth=2)
 
-        nps = self.shunt_johnson(w, Tt, It, t_ch)
-        ax.loglog(w, 1e6 * np.sqrt(nps), label='Shunt johnson', linewidth=2)
+            nps = self.shunt_johnson(w, Tt, It, t_ch)
+            ax.loglog(w, 1e6 * np.sqrt(nps), label='Shunt johnson', linewidth=2)
 
-        nps = self.squid_noise(w, Tt, It, t_ch)
-        ax.loglog(w, 1e6 * np.sqrt(nps), label='Squid noise', linewidth=2)
+            nps = self.squid_noise(w, Tt, It, t_ch)
+            ax.loglog(w, 1e6 * np.sqrt(nps), label='Squid noise', linewidth=2)
 
-        nps = self.one_f_noise(w, Tt, It, t_ch)
-        ax.loglog(w, 1e6 * np.sqrt(nps), label='1/f noise', linewidth=2)
+            nps = self.one_f_noise(w, Tt, It, t_ch)
+            ax.loglog(w, 1e6 * np.sqrt(nps), label='1/f noise', linewidth=2)
+
+            nps = self.emi_noise(w[w > 0], Tt, It, t_ch)
+            ax.loglog(w[w > 0], 1e6 * np.sqrt(nps), label='EM interference', linewidth=2)
 
         ax.set_xlabel('Frequency (Hz)')
         ax.set_ylabel('Amplitude (pA / sqrt(Hz))')
@@ -541,9 +558,14 @@ class DetectorModule:
     @staticmethod
     def Tb(t):
         """
-        TODO
+         The time-dependent heat bath temperature.
+
+        :param t: The timer time in seconds (e.g. self.timer).
+        :type t: float
+        :return: The heat bath temperature in ms.
+        :rtype: float
         """
-        T = 11.  # temp bath
+        T = 11.  # + 1e-3*t  # temp bath
         return T
 
     def P(self, t, T, It, no_pulses=False):
@@ -569,7 +591,7 @@ class DetectorModule:
     # private
 
     @staticmethod
-    def dTdItdt(t, TIt, C, Gb, Tb, G, P, Rs, Ib, Rt, L, tes_flag):
+    def dTdItdt(t, TIt, C, Gb, Tb, G, P, Rs, Ib, Rt, L, tes_flag, timer):
         """
         TODO
         """
@@ -579,7 +601,7 @@ class DetectorModule:
         It = TIt[nmbr_components:]
 
         dTdIt[:nmbr_components] = P(t, T, It)  # heat input
-        dTdIt[:nmbr_components] += Gb * (Tb(t) - T)  # coupling to temperature bath
+        dTdIt[:nmbr_components] += Gb * (Tb(t + timer) - T)  # coupling to temperature bath
         dTdIt[:nmbr_components] += np.dot(G, T)  # heat transfer from other components
         dTdIt[:nmbr_components] -= np.dot(np.diag(np.dot(G, np.ones(T.shape[0]))),
                                           T)  # heat transfer to other components
@@ -619,7 +641,10 @@ class DetectorModule:
     @staticmethod
     def pileup_er_distribution():
         """
-        TODO
+        Recoil energy distribution of the pile up events.
+
+        :return: A recoil energy for one pile-up event, in keV.
+        :rtype: float
         """
         return np.random.exponential(10)  # in keV
 
@@ -637,55 +662,58 @@ class DetectorModule:
 
     # noise contributions
 
-    def get_noise_bl(self, channel=0, lamb=0.1):
+    def get_noise_bl(self, channel=0):
         """
-        TODO
-        return in muA
+        Get a simulated noise baseline that can be superposed with the squid output.
+
+        :param channel: The number of the TES for which the noise is simulated.
+        :type channel: int
+        :return: The noise contribution to the squid output in V.
+        :rtype: 1D numpy array
         """
 
         t_ch = np.arange(self.nmbr_components)[self.tes_flag][channel]
         Tt = self.T[0, t_ch]  # in mK
         It = self.It[0, t_ch]  # in muA
 
-        w, nps = self.get_nps(Tt, It, channel)
+        w, nps = self.get_nps(Tt, It, channel)  # nps in (muA)^2/Hz
 
-        a = np.sqrt(lamb)
+        noise = self.noise_function(self.record_length * nps, size=1)[0] * (1 + 0.01 * np.random.normal())  # in muA
 
-        repeat = np.random.poisson(lam=1 / lamb)
-        if repeat == 0:
-            repeat = 1
-        roll_values = np.random.randint(0, self.record_length, size=repeat)
-
-        noise_temps = self.noise_function(nps, size=repeat)
-
-        noise_temps[:] = np.roll(noise_temps, roll_values, axis=1)
-        noise_temps[:] *= np.random.normal(scale=a, size=(repeat, 1))
-
-        noise = np.sum(noise_temps, axis=0)
-
-        return noise
+        return self.xi * noise  # in V
 
     @staticmethod
     def noise_function(nps, size):
         """
-        TODO
-        return in muA
+        A value trace in time space, that follows the given NPS.
+
+        :param nps: The noise power spectrum in (muA)^2/Hz.
+        :type nps: 1D numpy array
+        :param size: The number of traces to simulate.
+        :type size: int
+        :return: The simulated noise trace in muA.
+        :rtype: 1D numpy array
         """
         f = np.sqrt(nps)
-        Np = (len(f) - 1) // 2
         f = np.array(f, dtype='complex')  # create array for frequencies
         f = np.tile(f, (size, 1))
-        phases = np.random.rand(size, Np) * 2 * np.pi  # create random phases
+        phases = np.random.rand(size, nps.shape[0]) * 2 * np.pi  # create random phases
         phases = np.cos(phases) + 1j * np.sin(phases)
-        f[:, 1:Np + 1] *= phases
-        f[:, -1:-1 - Np:-1] = np.conj(f[:, 1:Np + 1])
+        f *= phases
         return np.fft.irfft(f, axis=-1)
 
     def get_nps(self, Tt, It, channel=0):
         """
-        TODO
-        inputs in mK and muA
-        return in (muA)^2/Hz
+        Simulate the total noise power spectrum with all contributions.
+
+        :param Tt: The temperature of the corresponding TES, in mK.
+        :type Tt: float
+        :param It: The current through the corresponsing TES, in muA.
+        :type It: float
+        :param channel: The number of the TES.
+        :type channel: int
+        :return: The frequencies of the nps (Hz) and their amplitudes in (muA)^2/Hz.
+        :rtype: list of two 1D numpy arrays
         """
         w = np.fft.rfftfreq(self.record_length, 1 / self.sample_frequency)
         nps = np.zeros(w.shape)
@@ -693,7 +721,8 @@ class DetectorModule:
                      self.thermometer_johnson(w[w > 0], Tt, It, channel) + \
                      self.shunt_johnson(w[w > 0], Tt, It, channel) + \
                      self.squid_noise(w[w > 0], Tt, It, channel) + \
-                     self.one_f_noise(w[w > 0], Tt, It, channel)
+                     self.one_f_noise(w[w > 0], Tt, It, channel) + \
+                     self.emi_noise(w[w > 0], Tt, It, channel)
         if self.lowpass is not None:
             b, a = butter(N=1, Wn=self.lowpass, btype='lowpass', analog=True)
             _, h = freqs(b, a, worN=w[w > 0])
@@ -762,7 +791,7 @@ class DetectorModule:
         t_ch = np.arange(self.nmbr_components)[self.tes_flag][channel]
         I_js = (1 - It ** 2 / self.Gb[t_ch] * self.dRtdT(Tt, channel)) ** 2 + w ** 2 * self.tau_in() ** 2
         I_js /= (1 + w ** 2 * self.tau_eff(Tt, It, channel) ** 2)
-        I_js *= 4 * k * Tt * self.Rs / (self.Rt(Tt) + self.Rs) ** 2
+        I_js *= 4 * k * self.Tb(self.timer) * self.Rs / (self.Rt(Tt) + self.Rs) ** 2
         I_js *= (self.tau_eff(Tt, It, channel) / self.tau_in()) ** 2
         return I_js * 1e9
 
@@ -786,6 +815,20 @@ class DetectorModule:
         I_one_f *= It ** 2 * self.Rt(Tt) ** 2 * self.tes_fluct[channel] ** 2 / w / (self.Rt(Tt) + self.Rs) ** 2
         return I_one_f
 
+    def emi_noise(self, w, Tt, It, channel=0):
+        """
+        TODO
+        return in (muA)^2/Hz
+        """
+        # pdb.set_trace()
+        t_ch = np.arange(self.nmbr_components)[self.tes_flag][channel]
+        I_em = (1 - It ** 2 / self.Gb[t_ch] * self.dRtdT(Tt, channel)) ** 2 + w ** 2 * self.tau_in() ** 2
+        I_em /= (1 + w ** 2 * self.tau_eff(Tt, It, channel) ** 2)
+        I_em /= (self.Rt(Tt) + self.Rs) ** 2
+        I_em *= (self.tau_eff(Tt, It, channel) / self.tau_in()) ** 2
+        I_em *= (self.emi) ** 2 * self.power_freq[-w.shape[0]:]
+        return I_em
+
     # utils
 
     def calc_par(self):  # TODO make work with more components/tes/heaters
@@ -793,15 +836,16 @@ class DetectorModule:
         TODO
         """
         self.offset = np.mean(self.squid_out_noise[self.t < self.t0], axis=0)
-        self.ph = np.max(self.squid_out_noise - self.offset, axis=0)
+        self.ph = np.max(self.squid_out_noise[self.t >= self.t0] - self.offset, axis=0)
         self.rms = np.std(self.squid_out_noise[self.t < self.t0] - self.offset, axis=0)
 
     def calc_par_(self):  # TODO make work with more components/tes/heaters
         """
         TODO
+        not used at this point
         """
         self.offset = np.mean(self.Il[:, self.t < self.t0], axis=1)
-        self.ph = np.max(self.Il - self.offset, axis=1)
+        self.ph = np.max(self.Il[:, self.t >= self.t0] - self.offset, axis=1)
         self.rms = np.std(self.Il[:, self.t < self.t0], axis=1)
 
     def append_buffer(self):
@@ -818,9 +862,9 @@ class DetectorModule:
         self.buffer_timer.extend(self.timer * np.ones(self.nmbr_tes))  # scalar
         self.buffer_channel.extend(np.arange(self.nmbr_tes))
         self.buffer_tes_resistance.extend(self.Rt(self.T[0, 0]) / self.Rt0 * np.ones(self.nmbr_tes))
-        pulse = self.squid_out_noise.reshape(256, -1)
-        pulse = np.mean(pulse, axis=-1)
         if self.store_raw:
+            pulse = self.squid_out_noise.reshape(256, -1)
+            pulse = np.mean(pulse, axis=-1)
             self.buffer_pulses.append(pulse)
 
         for ls in [self.buffer_offset, self.buffer_ph, self.buffer_rms,

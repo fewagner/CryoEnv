@@ -26,8 +26,8 @@ class CryoEnvSigWrapper(gym.Env):
         if sample_pars:
             self.pars = sample_parameters(**self.pars)
         self.detector = DetectorModule(**self.pars)
-        self.nmbr_actions = self.detector.nmbr_tes + self.detector.nmbr_heater
-        self.nmbr_observations = 2 * self.detector.nmbr_tes + self.detector.nmbr_heater
+        self.nmbr_actions = self.detector.nmbr_heater + self.detector.nmbr_tes
+        self.nmbr_observations = 3 * self.detector.nmbr_tes + 1 * self.detector.nmbr_heater
         self.ntes = self.detector.nmbr_tes
         self.nheater = self.detector.nmbr_heater
         self.omega = omega
@@ -37,7 +37,7 @@ class CryoEnvSigWrapper(gym.Env):
                                        dtype=np.float32)  # DACs, IBs
         self.observation_space = spaces.Box(low=- np.ones(self.nmbr_observations),
                                             high=np.ones(self.nmbr_observations),
-                                            dtype=np.float32)  # PHs, DACs, IBs
+                                            dtype=np.float32)  # PHs, RMSs, IBs, DACs, TPAs
 
         _ = self.reset()
 
@@ -60,8 +60,10 @@ class CryoEnvSigWrapper(gym.Env):
 
         new_state = np.ones(self.nmbr_observations)
         new_state[:self.ntes] = self.detector.get('ph', norm=True)
-        new_state[self.ntes:self.ntes + self.nheater] = self.detector.get('dac', norm=True)
-        new_state[self.ntes + self.nheater:2 * self.ntes + self.nheater] = self.detector.get('Ib', norm=True)
+        new_state[self.ntes:2 * self.ntes] = self.detector.get('rms', norm=True)
+        new_state[2 * self.ntes:3 * self.ntes] = self.detector.get('Ib', norm=True)
+        new_state[3 * self.ntes:3 * self.ntes + self.nheater] = self.detector.get('dac', norm=True)
+        # new_state[3 * self.ntes + self.nheater:3 * self.ntes + 2 * self.nheater] = self.detector.get('tpa', norm=True)
 
         reward = - np.sum(self.detector.rms * self.detector.tpa / self.detector.ph) - \
                  self.omega * np.sum((new_state[self.ntes:] - self.state[self.ntes:]) ** 2)
