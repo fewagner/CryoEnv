@@ -52,6 +52,7 @@ class DetectorModule:
                  lowpass=1e4,  # Hz
                  Tb=None,  # function that takes one positional argument t, returns Tb
                  Rt=None,  # function that takes one positional argument T, returns Rt
+                 C_out=np.array([1]),
                  dac_range=(0., 5.),  # V
                  Ib_range=(1e-1, 1e1),  # muA
                  adc_range=(-10., 10.),  # V
@@ -81,6 +82,8 @@ class DetectorModule:
         self.Tc = Tc
         self.Ib = Ib
         self.dac = dac
+        self.U_sq_Rh = dac
+        self.C_out = C_out
         self.pulser_scale = pulser_scale
         self.heater_attenuator = heater_attenuator
         self.tes_flag = tes_flag
@@ -114,8 +117,8 @@ class DetectorModule:
         self.nmbr_heater = len(self.Rh)
         self.t = np.arange(0, record_length / sample_frequency, 1 / sample_frequency)  # s
         self.power_freq = (1e3 + np.abs(np.fft.rfft(np.sin(2 * np.pi * self.t * 50) +
-                                                   0.5 * np.sin(2 * np.pi * self.t * 100) +
-                                                   0.33 * np.sin(2 * np.pi * self.t * 150)))) ** 2
+                                                    0.5 * np.sin(2 * np.pi * self.t * 100) +
+                                                    0.33 * np.sin(2 * np.pi * self.t * 150)))) ** 2
         self.t0_idx = np.searchsorted(self.t, self.t0)
         self.tpa_idx = 0
         self.timer = 0
@@ -192,6 +195,7 @@ class DetectorModule:
         TODO
         """
         self.timer += seconds
+        self.update_capacitor(seconds)
         if update_T:
             self.pileup_t0 = None
             self.pileup_er = 0
@@ -255,6 +259,7 @@ class DetectorModule:
             self.append_buffer()
         if time_passes:
             self.timer += self.t[-1]
+            self.update_capacitor(self.t[-1])
 
     def sweep_dac(self, start, end, norm=True):
         """
@@ -568,6 +573,9 @@ class DetectorModule:
         T = 11.  # + 1e-3*t  # temp bath
         return T
 
+    def update_capacitor(self, delta_t):
+        self.U_sq_Rh = (self.U_sq_Rh - self.dac) * np.exp(- delta_t / self.Rh / self.C_out) + self.dac
+
     def P(self, t, T, It, no_pulses=False):
         """
         TODO
@@ -582,7 +590,7 @@ class DetectorModule:
             P += self.pileup_er * self.eps * np.exp(
                 -(t - self.pileup_t0) / self.lamb) / self.lamb * keV_to_pJ  # particle
         P[self.tes_flag] += self.Rt(T[self.tes_flag]) * It ** 2  # self heating
-        P += self.delta * self.heater_attenuator * self.dac / self.Rh  # heating
+        P += self.delta * self.heater_attenuator * self.U_sq_Rh / self.Rh  # heating
         if t > self.t0 and not no_pulses:
             P += np.maximum(self.tpa, 0) * self.delta * self.heater_attenuator * self.pulser_scale * np.exp(
                 -(t - self.t0) / self.lamb) / self.Rh  # test pulses

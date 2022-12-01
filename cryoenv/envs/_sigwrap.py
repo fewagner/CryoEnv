@@ -37,7 +37,7 @@ class CryoEnvSigWrapper(gym.Env):
                                        dtype=np.float32)  # DACs, IBs
         self.observation_space = spaces.Box(low=- np.ones(self.nmbr_observations),
                                             high=np.ones(self.nmbr_observations),
-                                            dtype=np.float32)  # PHs, RMSs, IBs, DACs, TPAs
+                                            dtype=np.float32)  # PHs, RMSs, IBs, DACs  # , TPAs
 
         _ = self.reset()
 
