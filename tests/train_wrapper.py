@@ -1,10 +1,9 @@
 import gym
 import warnings
 import numpy as np
-from stable_baselines3 import SAC
-from tqdm.auto import tqdm
 from cryoenv.envs._utils_stablebaselines import ProgressBarManager
 import argparse
+from cryoenv.agents import SAC
 
 warnings.simplefilter('ignore')
 gym.logger.set_level(40)
@@ -39,10 +38,13 @@ if __name__ == '__main__':
 
     obs = env.reset()
 
-    model = SAC("MlpPolicy", env, verbose=1, learning_rate=1e-3, buffer_size=int(1e6), learning_starts=16,
-                batch_size=16, gamma=args['gamma'], train_freq=1, gradient_steps=args['gradient_steps'], )
+    entropy_tuning = True,  # activate automatic entropy tuning
+
+    model = SAC(env, policy="GaussianPolicy", critic="QNetwork", lr=1e-3, buffer_size=int(1e6), learning_starts=16,
+                batch_size=16, gamma=args['gamma'], target_update_interval=1, gradient_steps=args['gradient_steps'], )
+
     with ProgressBarManager(args['n_steps']) as callback:
-        model.learn(total_timesteps=args['n_steps'], log_interval=4, callback=callback)
+        model.learn(episodes=1, episode_steps=args['n_steps'], writer=None)
     model.save(args['save_path'])
     if args['plot']:
         env.detector.plot_buffer()

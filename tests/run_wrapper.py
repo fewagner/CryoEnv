@@ -1,10 +1,10 @@
 import gym
 import warnings
 import numpy as np
-from stable_baselines3 import SAC
 from tqdm.auto import trange
 import argparse
 import matplotlib.pyplot as plt
+from cryoenv.agents import SAC
 
 warnings.simplefilter('ignore')
 gym.logger.set_level(40)
@@ -37,12 +37,12 @@ if __name__ == '__main__':
                          'pileup_prob': args["pileup_prob"]},
                    )
 
-    model = SAC.load(args['load_path'])
+    model = SAC.load(env, args['load_path'])
 
     obs = env.reset()
     returns = 0
     for i in trange(args['n_steps']):
-        action, _states = model.predict(obs, deterministic=True)
+        action = model.predict(obs).flatten().detach().numpy()
         obs, reward, done, info = env.step(action)
         returns += reward
         if args['render'] is not None:

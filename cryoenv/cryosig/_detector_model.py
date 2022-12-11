@@ -24,34 +24,38 @@ class DetectorModule:
                  Gb=np.array([5e-3, 5e-3]),  # pW / mK
                  G=np.array([[0., 1e-3], [1e-3, 0.], ]),  # heat cond between components, pW / mK
                  lamb=0.003,  # thermalization time (s)
-                 eps=np.array([0.1, (1 - 0.1), ]),  # share thermalization in components
-                 delta=np.array([0.02, (1 - 0.02), ]),  # share thermalization in components
+                 eps=np.array([[0.99, 0.01], [0.1, 0.9], ]),
+                 # share thermalization in components
+                 delta=np.array([[0.02, 0.98], ]),
+                 # share thermalization in components
                  Rs=np.array([0.035]),  # Ohm
                  Rh=np.array([10]),  # Ohm
-                 Rt0=0.2,  # Ohm
                  L=np.array([3.5e-7]),  # H
-                 k=2.,  # 1/mK
-                 Tc=15.,  # mK
-                 Ib=1.,  # muA
+                 Rt0=np.array([0.2]),  # Ohm  TODO (2) should be list (nmbr_tes)
+                 k=np.array([2.]),  # 1/mK  TODO (2) should be list (nmbr_tes)
+                 Tc=np.array([15.]),  # mK  TODO (2) should be list (nmbr_tes)
+                 Ib=np.array([1.]),  # muA  TODO (2) should be list (nmbr_tes)
                  dac=np.array([0.]),  # V
-                 pulser_scale=1.,  # scale factor
-                 heater_attenuator=1.,
+                 pulser_scale=np.array([1.]),  # scale factor
+                 heater_attenuator=np.array([1.]),
                  tes_flag=np.array([True, False], dtype=bool),  # which component is a tes
                  heater_flag=np.array([False, True], dtype=bool),  # which component has a heater
                  t0=.16,  # onset of the trigger, s
-                 pileup_prob=0.02,  # percent / record window
+                 pileup_prob=0.05,  # percent / record window
+                 pileup_comp=1,
                  tpa_queue=np.array([0.1, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, ]),  # V
                  tp_interval=5,  # s
                  max_buffer_len=10000,
                  dac_ramping_speed=np.array([2e-3]),  # V / s
                  Ib_ramping_speed=np.array([5e-3]),  # muA / s
-                 xi=1.,  # squid conversion current to voltage, V / muA
+                 xi=np.array([1.]),  # squid conversion current to voltage, V / muA
                  i_sq=np.array([2 * 1e-12]),  # squid noise, A / sqrt(Hz)
                  tes_fluct=np.array([5e-4]),  # ??
                  emi=np.array([2e-10]),  # ??
                  lowpass=1e4,  # Hz
                  Tb=None,  # function that takes one positional argument t, returns Tb
-                 Rt=None,  # function that takes one positional argument T, returns Rt
+                 Rt=None,
+                 # function that takes one positional argument T, returns Rt TODO (2) should be list (nmbr_tes)
                  C_out=np.array([1]),
                  dac_range=(0., 5.),  # V
                  Ib_range=(1e-1, 1e1),  # muA
@@ -59,15 +63,61 @@ class DetectorModule:
                  store_raw=True,
                  ):
 
-        # TODO fix for multiple channels
-        # TODO temp dependence couplings and capacities
-        # TODO test with drifts
-        # TODO lstm agent
+        # TODO fix for multiple components
 
         if C is None:
             self.C = np.array([5e-5, 5e-4])
         else:
             self.C = C
+
+        if Rt is not None:
+            self.Rt = Rt
+        else:
+            self.Rt = [self.Rt_init(k_, Tc_, Rt0_) for k_, Tc_, Rt0_ in zip(k, Tc, Rt0)]
+
+        # define number of thermal components
+        self.nmbr_components = len(self.C)
+        assert len(tes_flag) == self.nmbr_components, ''
+        assert len(heater_flag) == self.nmbr_components, ''
+        assert len(self.C) == self.nmbr_components, ''
+        assert len(G) == self.nmbr_components, ''
+        assert len(G[0]) == self.nmbr_components, ''
+        assert len(Gb) == self.nmbr_components, ''
+        assert eps.shape[0] == eps.shape[1] == self.nmbr_components, ''
+        assert delta.shape[1] == self.nmbr_components, ''
+        assert pileup_comp < self.nmbr_components, ''
+        # TODO add more
+
+        # define number of tes
+        self.nmbr_tes = len(Rs)
+        assert len(Rs) == self.nmbr_tes, ''
+        assert np.sum(tes_flag) == self.nmbr_tes, ''
+        assert len(L) == self.nmbr_tes, ''
+        assert len(Ib_ramping_speed) == self.nmbr_tes, ''
+        assert len(i_sq) == self.nmbr_tes, ''
+        assert len(tes_fluct) == self.nmbr_tes, ''
+        assert len(emi) == self.nmbr_tes, ''
+        assert len(Rt0) == self.nmbr_tes, ''
+        assert len(k) == self.nmbr_tes, ''
+        assert len(Tc) == self.nmbr_tes, ''
+        assert len(Ib) == self.nmbr_tes, ''
+        assert len(self.Rt) == self.nmbr_tes, ''
+        # TODO add more
+
+        # define number of heaters
+        self.nmbr_heater = len(Rh)
+        assert len(Rh) == self.nmbr_heater, ''
+        assert np.sum(heater_flag) == self.nmbr_heater, ''
+        assert len(pulser_scale) == self.nmbr_heater, ''
+        assert len(heater_attenuator) == self.nmbr_heater, ''
+        assert len(dac) == self.nmbr_heater, ''
+        assert len(dac_ramping_speed) == self.nmbr_heater, ''
+        assert len(C_out) == self.nmbr_heater, ''
+        assert len(tpa_queue.shape) == 1 or (len(tpa_queue.shape) == 2 and tpa_queue.shape[1] == self.nmbr_heater), ''
+        # TODO add more
+
+        if len(tpa_queue.shape) == 1:
+            tpa_queue = np.repeat(tpa_queue.reshape(-1, 1), 2, axis=1)
 
         self.Gb = Gb
         self.G = G
@@ -92,6 +142,7 @@ class DetectorModule:
         self.sample_frequency = sample_frequency
         self.t0 = t0
         self.pileup_prob = pileup_prob
+        self.pileup_comp = pileup_comp
         self.tpa_queue = tpa_queue
         self.tp_interval = tp_interval
         self.max_buffer_len = max_buffer_len
@@ -104,17 +155,10 @@ class DetectorModule:
         self.lowpass = lowpass
         if Tb is not None:
             self.Tb = Tb
-        if Rt is not None:
-            self.Rt = Rt
-        else:
-            self.Rt = self.Rt_init()
         self.dac_range = dac_range
         self.Ib_range = Ib_range
         self.adc_range = adc_range
 
-        self.nmbr_components = len(self.C)
-        self.nmbr_tes = len(self.Rs)
-        self.nmbr_heater = len(self.Rh)
         self.t = np.arange(0, record_length / sample_frequency, 1 / sample_frequency)  # s
         self.power_freq = (1e3 + np.abs(np.fft.rfft(np.sin(2 * np.pi * self.t * 50) +
                                                     0.5 * np.sin(2 * np.pi * self.t * 100) +
@@ -130,16 +174,19 @@ class DetectorModule:
         self.pileup_er = 0
 
         self.Ce = self.C[self.tes_flag]
-        self.C[self.tes_flag] = self.Ce * (2.43 - 1.43 * self.Rt(self.T[0, self.tes_flag]) / self.Rt0)
+        self.update_capacity()
 
         self.clear_buffer()
 
+        assert self.tp_interval > 2 * self.record_length / self.sample_frequency, \
+            'tp_interval must be longer than 2 times the record window'
+
     # setter and getter
 
-    def norm(self, value, range):  # from range to (-1,1)
+    def norm(self, value, range):  # from range to (-1,1), TODO test with multiple channels?
         return 2 * (np.array(value) - range[0]) / (range[1] - range[0]) - 1
 
-    def denorm(self, value, range):  # from (-1,1) to range
+    def denorm(self, value, range):  # from (-1,1) to range, TODO test with multiple channels?
         return range[0] + (np.array(value) + 1) / 2 * (range[1] - range[0])
 
     def set_control(self, dac, Ib, norm=True):
@@ -152,7 +199,7 @@ class DetectorModule:
         self.dac = np.array(dac)
         self.Ib = np.array(Ib)
 
-        self.C[self.tes_flag] = self.Ce * (2.43 - 1.43 * self.Rt(self.T[0, self.tes_flag]) / self.Rt0)
+        self.update_capacity()
 
     def get(self, name, norm=True):
         value = np.array(eval('self.' + name))
@@ -183,12 +230,10 @@ class DetectorModule:
     # public
 
     def calc_out(self):
-        self.squid_out = self.xi * (self.Il - self.Il[0])
-        self.squid_out_noise = np.copy(self.squid_out)
+        self.squid_out = self.xi * (self.Il - self.Il[0])  # remove offset
         self.squid_out[self.squid_out > self.adc_range[1]] = self.adc_range[1]
         self.squid_out[self.squid_out < self.adc_range[0]] = self.adc_range[0]
-        self.squid_out_noise[self.squid_out_noise > self.adc_range[1]] = self.adc_range[1]
-        self.squid_out_noise[self.squid_out_noise < self.adc_range[0]] = self.adc_range[0]
+        self.squid_out_noise = np.copy(self.squid_out)
 
     def wait(self, seconds, update_T=True):
         """
@@ -199,8 +244,8 @@ class DetectorModule:
         if update_T:
             self.pileup_t0 = None
             self.pileup_er = 0
-            self.er = 0
-            self.tpa = 0
+            self.er = np.zeros(self.nmbr_components)
+            self.tpa = np.zeros(self.nmbr_heater)
             self.t = np.linspace(0, seconds, self.record_length)
 
             TIb = odeint(self.dTdItdt,
@@ -221,6 +266,10 @@ class DetectorModule:
         """
         TODO
         """
+        assert len(er) == self.nmbr_components, ''
+        assert len(tpa) == self.nmbr_heater, ''
+        er = np.array(er)
+        tpa = np.array(tpa)
         self.er = er
         self.tpa = tpa
         self.t = np.arange(0, self.record_length / self.sample_frequency, 1 / self.sample_frequency)
@@ -251,7 +300,7 @@ class DetectorModule:
             print(f'Calculated in {time.time() - tstamp} s.')
             tstamp = time.time()
         for c in np.arange(self.nmbr_tes):
-            self.squid_out_noise[:, c] += self.get_noise_bl(channel=c)
+            self.squid_out_noise[:, c] += self.get_noise_bl(tes_channel=c)
         if verb:
             print(f'Generated noise in {time.time() - tstamp} s.')
         self.calc_par()
@@ -272,10 +321,10 @@ class DetectorModule:
         for s, e in zip(start, end):
             dac_values.append(np.arange(s, e, np.sign(e - s) * self.dac_ramping_speed[0] * self.tp_interval))
         for dac in tqdm(zip(*dac_values), total=dac_values[0].shape[0]):
-            self.dac = np.array(dac)
-            self.wait(seconds=self.tp_interval - self.t[-1])
-            self.C[self.tes_flag] = self.Ce * (2.43 - 1.43 * self.Rt(self.T[0, self.tes_flag]) / self.Rt0)
-            self.trigger(er=0, tpa=self.tpa_queue[self.tpa_idx],
+            self.dac = np.array(dac)  # TODO problem with multiple heaters, let choose heater_channel!
+            self.wait(seconds=self.tp_interval - self.record_length / self.sample_frequency)
+            self.update_capacity()
+            self.trigger(er=np.zeros(self.nmbr_components), tpa=self.tpa_queue[self.tpa_idx],
                          verb=False, store=True, time_passes=True)
             self.tpa_idx += 1
             if self.tpa_idx + 1 > len(self.tpa_queue):
@@ -292,10 +341,10 @@ class DetectorModule:
         for s, e in zip(start, end):
             Ib_values.append(np.arange(s, e, np.sign(e - s) * self.Ib_ramping_speed[0] * self.tp_interval))
         for Ib in tqdm(zip(*Ib_values), total=Ib_values[0].shape[0]):
-            self.Ib = np.array(Ib)
-            self.wait(seconds=self.tp_interval - self.t[-1])
-            self.C[self.tes_flag] = self.Ce * (2.43 - 1.43 * self.Rt(self.T[0, self.tes_flag]) / self.Rt0)
-            self.trigger(er=0, tpa=self.tpa_queue[self.tpa_idx],
+            self.Ib = np.array(Ib)  # TODO problem with multiple tes, let choose tes_channel!
+            self.wait(seconds=self.tp_interval - self.record_length / self.sample_frequency)
+            self.update_capacity()
+            self.trigger(er=np.zeros(self.nmbr_components), tpa=self.tpa_queue[self.tpa_idx],
                          verb=False, store=True, time_passes=True)
             self.tpa_idx += 1
             if self.tpa_idx + 1 > len(self.tpa_queue):
@@ -306,19 +355,13 @@ class DetectorModule:
         TODO
         """
         for i in trange(nmbr_tp):
-            self.wait(seconds=self.tp_interval - self.t[-1])
-            self.C[self.tes_flag] = self.Ce * (2.43 - 1.43 * self.Rt(self.T[0, self.tes_flag]) / self.Rt0)
-            self.trigger(er=0, tpa=self.tpa_queue[self.tpa_idx],
+            self.wait(seconds=self.tp_interval - self.record_length / self.sample_frequency)
+            self.update_capacity()
+            self.trigger(er=np.zeros(self.nmbr_components), tpa=self.tpa_queue[self.tpa_idx],
                          verb=False, store=True, time_passes=True)
             self.tpa_idx += 1
             if self.tpa_idx + 1 > len(self.tpa_queue):
                 self.tpa_idx = 0
-
-    def start_server(self, ):
-        """
-        TODO
-        """
-        pass  # TODO
 
     def clear_buffer(self):
         """
@@ -335,16 +378,101 @@ class DetectorModule:
         self.buffer_tes_resistance = []
         self.buffer_pulses = []  # TODO buffer for pulses
 
-    def plot_event(self, tes_channel=0, heater_channel=0, show=True):  # TODO make work with more components/tes/heaters
+    def plot_temperatures(self, show=True):
+
+        fig, axes = plt.subplots(self.nmbr_components, 1, figsize=(10, 1.5 * self.nmbr_components), sharex=True)
+
+        power_input = map(self.P, self.t, self.T, self.It)  # for i in range(self.t.shape[0])]
+        power_input = np.array(list(power_input))
+
+        for i in range(self.nmbr_components):
+            label = 'TES' if self.tes_flag[i] else 'Component'
+            axes[i].tick_params(axis='y', labelcolor='C0')
+            axes[i].plot(self.t, self.T[:, i], label='Temperature {} {}'.format(label, i), zorder=10, c='C0',
+                         linewidth=2)
+            axes[i].legend(loc='upper right', frameon=False).set_zorder(100)
+            axes[i].set_zorder(10)
+            axes[i].set_frame_on(False)
+            axes[i].tick_params(axis='y', labelcolor='C0')
+            ax_2 = axes[i].twinx()
+            ax_2.plot(self.t, 0.001 * power_input[:, i], label='Heat input {} {}'.format(label, i), c='C3', linewidth=2)
+            ax_2.legend(loc='center right', frameon=False).set_zorder(100)
+            ax_2.tick_params(axis='y', labelcolor='C3')
+
+        fig.supxlabel('Time (s)')
+        fig.tight_layout()
+        if show:
+            plt.show()
+        else:
+            return fig, axes
+
+    def plot_tes(self, show=True):
+
+        fig, axes = plt.subplots(self.nmbr_tes, 2, figsize=(10, 3 * self.nmbr_tes))
+        axes = axes.flatten()
+
+        for i in range(self.nmbr_tes):
+            tes_channel = i
+            t_ch = np.arange(self.nmbr_components)[self.tes_flag][tes_channel]  # from tes idx to component idx
+
+            # transition curve plot
+            Tmin, Tmax = np.min(self.T[:, t_ch]), np.max(self.T[:, t_ch])
+            Rmin, Rmax = self.Rt[tes_channel](Tmin), self.Rt[tes_channel](Tmax)
+            temp = np.linspace(np.minimum(self.Tc[tes_channel] - 4 / self.k[tes_channel], np.minimum(Tmin, self.Tb(0))),
+                               np.maximum(self.Tc[tes_channel] + 4 / self.k[tes_channel], Tmax), 100)
+            axes[2*i + 0].plot(temp, 1000 * self.Rt[tes_channel](temp), label='Transition curve', c='#FF7979', linewidth=2)
+            axes[2*i + 0].axvline(x=self.Tb(0), color='grey', linestyle='dashed', label='Heat bath')
+            axes[2*i + 0].fill_between([Tmin, Tmax],
+                                    [0, 0],
+                                    [1000 * Rmin, 1000 * Rmax], color='#99CCFF', alpha=0.5, zorder=10)
+            axes[2*i + 0].fill_between([temp[0], Tmin, Tmax],
+                                    [1000 * Rmin, 1000 * Rmin, 1000 * Rmax],
+                                    [1000 * Rmax, 1000 * Rmax, 1000 * Rmax], color='#99CCFF', alpha=0.5, zorder=10)
+            axes[2*i + 0].plot([temp[0], Tmin], [1000 * Rmin, 1000 * Rmin], color='black',  # alpha=0.5,
+                            linewidth=2, label='OP', zorder=100)
+            axes[2*i + 0].plot([temp[0], Tmax], [1000 * Rmax, 1000 * Rmax], color='black',  # alpha=0.5,
+                            linewidth=2, zorder=100)
+            axes[2*i + 0].plot([Tmin, Tmin], [0, 1000 * Rmin], color='black',  # alpha=O.5,
+                            linewidth=2, zorder=100)
+            axes[2*i + 0].plot([Tmax, Tmax], [0, 1000 * Rmax], color='black',  # alpha=0.5,
+                            linewidth=2, zorder=100)
+            axes[2*i + 0].set_ylabel('Resistance (mOhm)', c='#FF7979')
+            axes[2*i + 0].set_xlabel('Temperature (mK)')
+            axes[2*i + 0].legend().set_zorder(100)
+            axes[2*i + 0].tick_params(axis='y', labelcolor='#FF7979')
+            axes[2*i + 0].set_title('TES curve {}'.format(i))
+
+            # recoil signature plot
+            axes[2*i + 1].plot(self.t, self.squid_out_noise[:, i], label='Squid output', zorder=5, c='black', linewidth=1,
+                            alpha=0.7)
+            axes[2*i + 1].plot(self.t, self.squid_out[:, i], label='Recoil signature', zorder=10, c='red', linewidth=2,
+                            alpha=1)
+            axes[2*i + 1].set_ylabel('Voltage (V)')  # , color='red'
+            axes[2*i + 1].set_xlabel('Time (s)')
+            axes[2*i + 1].legend(loc='upper right').set_zorder(100)
+            axes[2*i + 1].set_zorder(10)
+            axes[2*i + 1].set_title('Squid output {}'.format(i))
+
+        fig.tight_layout()
+        if show:
+            plt.show()
+        else:
+            return fig, axes
+
+    def plot_event(self, tes_channel=0, show=True):
         """
         TODO
         """
 
-        t_ch = np.arange(self.nmbr_components)[self.tes_flag][tes_channel]
-        h_ch = np.arange(self.nmbr_components)[self.heater_flag][heater_channel]
+        assert self.nmbr_components == 2, 'This method works only with the standard 2 component design!'
+        assert self.nmbr_tes == 1, 'This method works only with the standard 2 component design!'
+
+        t_ch = np.arange(self.nmbr_components)[self.tes_flag][tes_channel]  # from tes idx to component idx
 
         fig, axes = plt.subplots(2, 2, figsize=(10, 6))
 
+        # temperatures plot
+        axes[0, 0].tick_params(axis='y', labelcolor='C0')
         axes[0, 0].plot(self.t, self.T[:, 0], label='Thermometer', zorder=10, c='C0', linewidth=2)
         axes[0, 0].set_ylabel('Temperature (mK)', color='C0')
         axes[0, 0].set_xlabel('Time (s)')
@@ -358,6 +486,7 @@ class DetectorModule:
         ax00_2.legend(loc='center right').set_zorder(100)
         ax00_2.tick_params(axis='y', labelcolor='C1')
 
+        # recoil signature plot
         axes[0, 1].plot(self.t, self.squid_out_noise, label='Squid output', zorder=5, c='black', linewidth=1, alpha=0.7)
         axes[0, 1].plot(self.t, self.squid_out, label='Recoil signature', zorder=10, c='red', linewidth=2, alpha=1)
         axes[0, 1].set_ylabel('Voltage (V)')  # , color='red'
@@ -365,11 +494,12 @@ class DetectorModule:
         axes[0, 1].legend(loc='upper right').set_zorder(100)
         axes[0, 1].set_zorder(10)
 
+        # transition curve plot
         Tmin, Tmax = np.min(self.T[:, t_ch]), np.max(self.T[:, t_ch])
-        Rmin, Rmax = self.Rt(Tmin), self.Rt(Tmax)
-        temp = np.linspace(np.minimum(self.Tc - 4 / self.k, np.minimum(Tmin, self.Tb(0))),
-                           np.maximum(self.Tc + 4 / self.k, Tmax), 100)
-        axes[1, 0].plot(temp, 1000 * self.Rt(temp), label='Transition curve', c='#FF7979', linewidth=2)
+        Rmin, Rmax = self.Rt[tes_channel](Tmin), self.Rt[tes_channel](Tmax)
+        temp = np.linspace(np.minimum(self.Tc[tes_channel] - 4 / self.k[tes_channel], np.minimum(Tmin, self.Tb(0))),
+                           np.maximum(self.Tc[tes_channel] + 4 / self.k[tes_channel], Tmax), 100)
+        axes[1, 0].plot(temp, 1000 * self.Rt[tes_channel](temp), label='Transition curve', c='#FF7979', linewidth=2)
         axes[1, 0].axvline(x=self.Tb(0), color='grey', linestyle='dashed', label='Heat bath')
         axes[1, 0].fill_between([Tmin, Tmax],
                                 [0, 0],
@@ -390,6 +520,7 @@ class DetectorModule:
         axes[1, 0].legend().set_zorder(100)
         axes[1, 0].tick_params(axis='y', labelcolor='#FF7979')
 
+        # power input plot
         power_input = map(self.P, self.t, self.T, self.It)  # for i in range(self.t.shape[0])]
         power_input = np.array(list(power_input))
         axes[1, 1].plot(self.t, 0.001 * power_input[:, 0], color='blue', label='Thermometer', zorder=10, linewidth=2,
@@ -412,38 +543,38 @@ class DetectorModule:
         else:
             return fig, axes
 
-    def plot_nps(self, channel=0, only_sum=False):
+    def plot_nps(self, tes_channel=0, only_sum=False):  # TODO multiple tes?
         """
         TODO
         """
 
-        t_ch = np.arange(self.nmbr_components)[self.tes_flag][channel]
+        t_ch = np.arange(self.nmbr_components)[self.tes_flag][tes_channel]
         Tt = self.T[0, t_ch]
         It = self.It[0, t_ch]
 
         fig, ax = plt.subplots(1, 1, figsize=(8, 5))
 
-        w, nps = self.get_nps(Tt, It, t_ch)
+        w, nps = self.get_nps(Tt, It, tes_channel)
         ax.loglog(w, 1e6 * np.sqrt(nps), label='combined', linewidth=2, color='black', zorder=10)
 
         if not only_sum:
             w = np.logspace(np.log10(np.min(w[w > 0])), np.log10(np.max(w)))
-            nps = self.thermal_noise(w, Tt, It, t_ch)
+            nps = self.thermal_noise(w, Tt, It, tes_channel)
             ax.loglog(w, 1e6 * np.sqrt(nps), label='Thermal noise', linewidth=2)
 
-            nps[w > 0] = self.thermometer_johnson(w, Tt, It, t_ch)
+            nps[w > 0] = self.thermometer_johnson(w, Tt, It, tes_channel)
             ax.loglog(w, 1e6 * np.sqrt(nps), label='Thermometer johnson', linewidth=2)
 
-            nps = self.shunt_johnson(w, Tt, It, t_ch)
+            nps = self.shunt_johnson(w, Tt, It, tes_channel)
             ax.loglog(w, 1e6 * np.sqrt(nps), label='Shunt johnson', linewidth=2)
 
-            nps = self.squid_noise(w, Tt, It, t_ch)
+            nps = self.squid_noise(w, Tt, It, tes_channel)
             ax.loglog(w, 1e6 * np.sqrt(nps), label='Squid noise', linewidth=2)
 
-            nps = self.one_f_noise(w, Tt, It, t_ch)
+            nps = self.one_f_noise(w, Tt, It, tes_channel)
             ax.loglog(w, 1e6 * np.sqrt(nps), label='1/f noise', linewidth=2)
 
-            nps = self.emi_noise(w[w > 0], Tt, It, t_ch)
+            nps = self.emi_noise(w[w > 0], Tt, It, tes_channel)
             ax.loglog(w[w > 0], 1e6 * np.sqrt(nps), label='EM interference', linewidth=2)
 
         ax.set_xlabel('Frequency (Hz)')
@@ -453,7 +584,7 @@ class DetectorModule:
         fig.tight_layout()
         plt.show()
 
-    def print_noise_parameters(self, channel=0):
+    def print_noise_parameters(self, channel=0):  # its the TES channel
         """
         TODO
         """
@@ -462,21 +593,21 @@ class DetectorModule:
         Tt = self.T[0, t_ch]
         It = self.It[0, t_ch]
 
-        print('Resistance TES / Resistance normal conducting: {}'.format(self.Rt(Tt) / self.Rt0))
+        print('Resistance TES / Resistance normal conducting: {}'.format(self.Rt[channel](Tt) / self.Rt0[channel]))
         print('Temperature mixing chamber: {} mK'.format(self.Tb(0)))
         print('Temperature TES: {} mK'.format(Tt))
-        print('Resistance TES: {} mOhm'.format(1e3 * self.Rt(Tt)))
-        print('Tau eff: {} ms'.format(1e3 * self.tau_eff(Tt, It)))
-        print('Slope: {} mOhm/mK'.format(1e3 * self.dRtdT(Tt)))
+        print('Resistance TES: {} mOhm'.format(1e3 * self.Rt[channel](Tt)))
+        print('Tau eff: {} ms'.format(1e3 * self.tau_eff(Tt, It, channel)))
+        print('Slope: {} mOhm/mK'.format(1e3 * self.dRtdT(Tt, channel)))
         print('C: {} fJ / K '.format(1e6 * self.C[t_ch]))  # should be Pantic 3.5, and cubic
         print('Geff: ???')
         print('Tau in: {} ms'.format(1e3 * self.tau_in(channel)))
         print('Geb: {} pW / K '.format(1e3 * self.Gb[0]))
         print('G ETF: {} pW / K '.format(1e3 * self.G_etf(Tt, It, channel)))
-        print('R shunt: {} mOhm'.format(1e3 * self.Rs))
+        print('R shunt: {} mOhm'.format(1e3 * self.Rs[channel]))
         print('Temperature shunt: {} mK'.format(self.Tb(0)))
-        print('i sq: {} pA/sqrt(Hz)'.format(1e12 * self.i_sq))
-        print('1 / f amplitude: {} '.format(self.tes_fluct ** 2))
+        print('i sq: {} pA/sqrt(Hz)'.format(1e12 * self.i_sq[channel]))
+        print('1 / f amplitude: {} '.format(self.tes_fluct[channel] ** 2))
 
     def plot_buffer(self, tes_channel=0, tpa=None):
         """
@@ -581,19 +712,24 @@ class DetectorModule:
         TODO
         """
         keV_to_pJ = e * 1e3 * 1e12
+        P = np.zeros(T.shape)
         if t > self.t0 and not no_pulses:
-            P = self.er * self.eps * np.exp(
-                -(t - self.t0) / self.lamb) / self.lamb * keV_to_pJ  # particle
-        else:
-            P = np.zeros(T.shape)
+            for i in range(self.nmbr_components):
+                P += self.er[i] * self.eps[i] * np.exp(
+                    -(t - self.t0) / self.lamb) / self.lamb * keV_to_pJ  # particle
         if self.pileup_t0 is not None and t > self.pileup_t0 and not no_pulses:
-            P += self.pileup_er * self.eps * np.exp(
-                -(t - self.pileup_t0) / self.lamb) / self.lamb * keV_to_pJ  # particle
-        P[self.tes_flag] += self.Rt(T[self.tes_flag]) * It ** 2  # self heating
-        P += self.delta * self.heater_attenuator * self.U_sq_Rh / self.Rh  # heating
+            P += self.pileup_er * self.eps[self.pileup_comp] * np.exp(
+                -(t - self.pileup_t0) / self.lamb) / self.lamb * keV_to_pJ  # pile up particle
+        for i in range(self.nmbr_tes):
+            c = np.nonzero(self.tes_flag)[0][i]
+            P[c] += self.Rt[i](T[c]) * It[i] ** 2  # self heating
+        for i in range(self.nmbr_heater):
+            P += self.delta[i] * self.heater_attenuator[i] * self.U_sq_Rh[i] / self.Rh[i]  # heating
         if t > self.t0 and not no_pulses:
-            P += np.maximum(self.tpa, 0) * self.delta * self.heater_attenuator * self.pulser_scale * np.exp(
-                -(t - self.t0) / self.lamb) / self.Rh  # test pulses
+            for i in range(self.nmbr_heater):
+                P += np.maximum(self.tpa[i], 0) * self.delta[i] * self.heater_attenuator[i] * self.pulser_scale[
+                    i] * np.exp(
+                    -(t - self.t0) / self.lamb) / self.Rh[i]  # test pulses
         return P
 
     # private
@@ -608,6 +744,7 @@ class DetectorModule:
         T = TIt[:nmbr_components]
         It = TIt[nmbr_components:]
 
+        # thermal
         dTdIt[:nmbr_components] = P(t, T, It)  # heat input
         dTdIt[:nmbr_components] += Gb * (Tb(t + timer) - T)  # coupling to temperature bath
         dTdIt[:nmbr_components] += np.dot(G, T)  # heat transfer from other components
@@ -615,36 +752,39 @@ class DetectorModule:
                                           T)  # heat transfer to other components
         dTdIt[:nmbr_components] /= C  # heat to temperature
 
+        # electricalv
         dTdIt[nmbr_components:] = Rs * Ib  #
-        dTdIt[nmbr_components:] -= It * (Rt(T[tes_flag]) + Rs)  #
+        for i in range(Ib.shape[0]):
+            c = np.nonzero(tes_flag)[0][i]
+            dTdIt[nmbr_components + i] -= It[i] * (Rt[i](T[c]) + Rs[i])  #
         dTdIt[nmbr_components:] /= L  # voltage to current
 
         return dTdIt
 
-    def Rt_init(self, a=1, b=1):
+    def Rt_init(self, k, Tc, Rt0, a=1, b=1):
         """
         TODO
         """
-        T = np.linspace(self.Tc - 10 / self.k, self.Tc + 10 / self.k, 500)
+        T = np.linspace(Tc - 10 / k, Tc + 10 / k, 500)
         R = np.zeros(T.shape)
-        R[T < self.Tc] += a * self.Rt0 / (1 + np.exp(-self.k * (T[T < self.Tc] - self.Tc)))
-        R[T >= self.Tc] += b * self.Rt0 / (1 + np.exp(-self.k * (T[T > self.Tc] - self.Tc)))
-        R[np.logical_and(T >= self.Tc - 2 / self.k, T < self.Tc)] += (1 - a) * self.Rt0 * (
-                T[np.logical_and(T >= self.Tc - 2 / self.k, T < self.Tc)] - self.Tc + 2 / self.k) * self.k / 4
-        R[np.logical_and(T >= self.Tc, T < self.Tc + 2 / self.k)] += (1 - b) * self.Rt0 * (
-                T[np.logical_and(T >= self.Tc, T < self.Tc + 2 / self.k)] - self.Tc + 2 / self.k) * self.k / 4
-        R[T >= self.Tc + 2 / self.k] += (1 - b) * self.Rt0
+        R[T < Tc] += a * Rt0 / (1 + np.exp(-k * (T[T < Tc] - Tc)))
+        R[T >= Tc] += b * Rt0 / (1 + np.exp(-k * (T[T > Tc] - Tc)))
+        R[np.logical_and(T >= Tc - 2 / k, T < Tc)] += (1 - a) * Rt0 * (
+                T[np.logical_and(T >= Tc - 2 / k, T < Tc)] - Tc + 2 / k) * k / 4
+        R[np.logical_and(T >= Tc, T < Tc + 2 / k)] += (1 - b) * Rt0 * (
+                T[np.logical_and(T >= Tc, T < Tc + 2 / k)] - Tc + 2 / k) * k / 4
+        R[T >= Tc + 2 / k] += (1 - b) * Rt0
 
         # make edges nicer
-        idx_low = np.searchsorted(T, self.Tc - 3 / self.k)
-        idx_high = np.searchsorted(T, self.Tc + 3 / self.k)
+        idx_low = np.searchsorted(T, Tc - 3 / k)
+        idx_high = np.searchsorted(T, Tc + 3 / k)
         R -= R[idx_low]
         R[R < 0] = 0
         R /= R[idx_high]
-        R *= self.Rt0
-        R[R > self.Rt0] = self.Rt0
+        R *= Rt0
+        R[R > Rt0] = Rt0
 
-        return lambda x: np.interp(x, T, R, left=0, right=self.Rt0)
+        return lambda x: np.interp(x, T, R, left=0, right=Rt0)
 
     @staticmethod
     def pileup_er_distribution():
@@ -656,21 +796,28 @@ class DetectorModule:
         """
         return np.random.exponential(10)  # in keV
 
-    def currents(self, Tt):  # TODO make work with more components/tes/heaters
+    def currents(self, Tt):  # TODO test for more tes .... does it what it should??
         """
         TODO
+        Tt has shape (record_length, nmbr_tes)
         """
         Rs = self.Rs
-        Il, It = np.zeros(Tt.shape), np.zeros(Tt.shape)
-        R_tes = self.Rt(Tt)
-        Il[R_tes > 0] = self.Ib * (1 / (1 + Rs / R_tes[R_tes > 0]))
-        It[R_tes > 0] = self.Ib * (1 / (1 + R_tes[R_tes > 0] / Rs))
-        It[R_tes <= 0] = self.Ib
+        R_tes, Il, It = np.zeros(Tt.shape), np.zeros(Tt.shape), np.zeros(Tt.shape)
+        for i in range(self.nmbr_tes):
+            R_tes[:, i] = self.Rt[i](Tt[:, i])
+            Il[R_tes[:, i] > 0, i] = self.Ib[i] * (1 / (1 + Rs[i] / R_tes[R_tes[:, i] > 0, i]))
+            It[R_tes[:, i] > 0, i] = self.Ib[i] * (1 / (1 + R_tes[R_tes[:, i] > 0, i] / Rs[i]))
+            It[R_tes[:, i] <= 0, i] = self.Ib[i]
         return Il, It
+
+    def update_capacity(self):
+        for i in range(self.nmbr_tes):
+            tes_idx = np.nonzero(self.tes_flag)[0][i]
+            self.C[tes_idx] = self.Ce[i] * (2.43 - 1.43 * self.Rt[i](self.T[0, tes_idx]) / self.Rt0[i])
 
     # noise contributions
 
-    def get_noise_bl(self, channel=0):
+    def get_noise_bl(self, tes_channel=0):
         """
         Get a simulated noise baseline that can be superposed with the squid output.
 
@@ -680,15 +827,15 @@ class DetectorModule:
         :rtype: 1D numpy array
         """
 
-        t_ch = np.arange(self.nmbr_components)[self.tes_flag][channel]
+        t_ch = np.arange(self.nmbr_components)[self.tes_flag][tes_channel]
         Tt = self.T[0, t_ch]  # in mK
         It = self.It[0, t_ch]  # in muA
 
-        w, nps = self.get_nps(Tt, It, channel)  # nps in (muA)^2/Hz
+        w, nps = self.get_nps(Tt, It, tes_channel)  # nps in (muA)^2/Hz
 
         noise = self.noise_function(self.record_length * nps, size=1)[0] * (1 + 0.01 * np.random.normal())  # in muA
 
-        return self.xi * noise  # in V
+        return self.xi[tes_channel] * noise  # in V
 
     @staticmethod
     def noise_function(nps, size):
@@ -710,7 +857,7 @@ class DetectorModule:
         f *= phases
         return np.fft.irfft(f, axis=-1)
 
-    def get_nps(self, Tt, It, channel=0):
+    def get_nps(self, Tt, It, tes_channel=0):
         """
         Simulate the total noise power spectrum with all contributions.
 
@@ -725,116 +872,120 @@ class DetectorModule:
         """
         w = np.fft.rfftfreq(self.record_length, 1 / self.sample_frequency)
         nps = np.zeros(w.shape)
-        nps[w > 0] = self.thermal_noise(w[w > 0], Tt, It, channel) + \
-                     self.thermometer_johnson(w[w > 0], Tt, It, channel) + \
-                     self.shunt_johnson(w[w > 0], Tt, It, channel) + \
-                     self.squid_noise(w[w > 0], Tt, It, channel) + \
-                     self.one_f_noise(w[w > 0], Tt, It, channel) + \
-                     self.emi_noise(w[w > 0], Tt, It, channel)
+        nps[w > 0] = self.thermal_noise(w[w > 0], Tt, It, tes_channel) + \
+                     self.thermometer_johnson(w[w > 0], Tt, It, tes_channel) + \
+                     self.shunt_johnson(w[w > 0], Tt, It, tes_channel) + \
+                     self.squid_noise(w[w > 0], Tt, It, tes_channel) + \
+                     self.one_f_noise(w[w > 0], Tt, It, tes_channel) + \
+                     self.emi_noise(w[w > 0], Tt, It, tes_channel)
         if self.lowpass is not None:
             b, a = butter(N=1, Wn=self.lowpass, btype='lowpass', analog=True)
             _, h = freqs(b, a, worN=w[w > 0])
             nps[w > 0] *= np.abs(h)
         return w, nps
 
-    def dRtdT(self, T, channel=0):
+    def dRtdT(self, T, tes_channel=0):
         """
         TODO
         """
-        grid = np.linspace(self.Tc - 5 / self.k, self.Tc + 5 / self.k, 1000)
+        grid = np.linspace(self.Tc[tes_channel] - 5 / self.k[tes_channel],
+                           self.Tc[tes_channel] + 5 / self.k[tes_channel], 1000)
         h = (grid[1] - grid[0])
-        return np.interp(T, grid[:-1] + h / 2, 1 / h * np.diff(self.Rt(grid)))
+        return np.interp(T, grid[:-1] + h / 2, 1 / h * np.diff(self.Rt[tes_channel](grid)))
 
-    def G_etf(self, Tt, It, channel=0):
+    def G_etf(self, Tt, It, tes_channel=0):
         """
         TODO
         """
-        return It ** 2 * self.dRtdT(Tt, channel) * (self.Rt(Tt) - self.Rs) / (self.Rt(Tt) + self.Rs)
+        return It ** 2 * self.dRtdT(Tt, tes_channel) * (self.Rt[tes_channel](Tt) - self.Rs[tes_channel]) / (
+                    self.Rt[tes_channel](Tt) + self.Rs[tes_channel])
 
-    def tau_eff(self, Tt, It, channel=0):
+    def tau_eff(self, Tt, It, tes_channel=0):
         """
         TODO
         """
-        t_ch = np.arange(self.nmbr_components)[self.tes_flag][channel]
-        return self.tau_in() / (1 + self.G_etf(Tt, It) / self.Gb[t_ch])
+        t_ch = np.arange(self.nmbr_components)[self.tes_flag][tes_channel]
+        return self.tau_in(tes_channel) / (1 + self.G_etf(Tt, It) / self.Gb[t_ch])
 
-    def tau_in(self, channel=0):
+    def tau_in(self, tes_channel=0):
         """
         TODO
         """
-        t_ch = np.arange(self.nmbr_components)[self.tes_flag][channel]
+        t_ch = np.arange(self.nmbr_components)[self.tes_flag][tes_channel]
         return self.C[t_ch] / self.Gb[t_ch]
 
-    def thermal_noise(self, w, Tt, It, channel=0):
+    def thermal_noise(self, w, Tt, It, tes_channel=0):
         """
         TODO
         return in (muA)^2/Hz
         """
-        t_ch = np.arange(self.nmbr_components)[self.tes_flag][channel]
+        t_ch = np.arange(self.nmbr_components)[self.tes_flag][tes_channel]
         P_th_squared = 4 * k * Tt ** 2 * self.Gb[t_ch]
         if Tt > self.Tb(0):
             P_th_squared *= 2 / 5 * (1 - (self.Tb(0) / Tt) ** 5) / (1 - (self.Tb(0) / Tt) ** 2)
-        S_squared = 1 / (1 + w ** 2 * self.tau_eff(Tt, It, channel) ** 2)
-        S_squared /= (self.Gb[t_ch] + self.G_etf(Tt, It, channel)) ** 2
-        S_squared *= (It / (self.Rt(Tt) + self.Rs)) ** 2
-        S_squared *= self.dRtdT(Tt, channel) ** 2
+        S_squared = 1 / (1 + w ** 2 * self.tau_eff(Tt, It, tes_channel) ** 2)
+        S_squared /= (self.Gb[t_ch] + self.G_etf(Tt, It, tes_channel)) ** 2
+        S_squared *= (It / (self.Rt[tes_channel](Tt) + self.Rs[tes_channel])) ** 2
+        S_squared *= self.dRtdT(Tt, tes_channel) ** 2
         return S_squared * P_th_squared * 1e6
 
-    def thermometer_johnson(self, w, Tt, It, channel=0):
+    def thermometer_johnson(self, w, Tt, It, tes_channel=0):
         """
         TODO
         return in (muA)^2/Hz
         """
-        I_jt = (1 + w ** 2 * self.tau_in() ** 2)
-        I_jt /= (1 + w ** 2 * self.tau_eff(Tt, It, channel) ** 2)
-        I_jt *= 4 * k * Tt * self.Rt(Tt) / (self.Rt(Tt) + self.Rs) ** 2
-        I_jt *= (self.tau_eff(Tt, It, channel) / self.tau_in()) ** 2
+        I_jt = (1 + w ** 2 * self.tau_in(tes_channel) ** 2)
+        I_jt /= (1 + w ** 2 * self.tau_eff(Tt, It, tes_channel) ** 2)
+        I_jt *= 4 * k * Tt * self.Rt[tes_channel](Tt) / (self.Rt[tes_channel](Tt) + self.Rs[tes_channel]) ** 2
+        I_jt *= (self.tau_eff(Tt, It, tes_channel) / self.tau_in(tes_channel)) ** 2
         return I_jt * 1e9
 
-    def shunt_johnson(self, w, Tt, It, channel=0):
+    def shunt_johnson(self, w, Tt, It, tes_channel=0):
         """
         TODO
         return in (muA)^2/Hz
         """
-        t_ch = np.arange(self.nmbr_components)[self.tes_flag][channel]
-        I_js = (1 - It ** 2 / self.Gb[t_ch] * self.dRtdT(Tt, channel)) ** 2 + w ** 2 * self.tau_in() ** 2
-        I_js /= (1 + w ** 2 * self.tau_eff(Tt, It, channel) ** 2)
-        I_js *= 4 * k * self.Tb(self.timer) * self.Rs / (self.Rt(Tt) + self.Rs) ** 2
-        I_js *= (self.tau_eff(Tt, It, channel) / self.tau_in()) ** 2
+        t_ch = np.arange(self.nmbr_components)[self.tes_flag][tes_channel]
+        I_js = (1 - It ** 2 / self.Gb[t_ch] * self.dRtdT(Tt, tes_channel)) ** 2 + w ** 2 * self.tau_in(tes_channel) ** 2
+        I_js /= (1 + w ** 2 * self.tau_eff(Tt, It, tes_channel) ** 2)
+        I_js *= 4 * k * self.Tb(self.timer) * self.Rs[tes_channel] / (
+                    self.Rt[tes_channel](Tt) + self.Rs[tes_channel]) ** 2
+        I_js *= (self.tau_eff(Tt, It, tes_channel) / self.tau_in(tes_channel)) ** 2
         return I_js * 1e9
 
-    def squid_noise(self, w, Tt, It, channel=0):
+    def squid_noise(self, w, Tt, It, tes_channel=0):
         """
         TODO
         return in (muA)^2/Hz
         """
         I_sq = w / w
-        I_sq *= self.i_sq[channel] ** 2
+        I_sq *= self.i_sq[tes_channel] ** 2
         return I_sq * 1e12
 
-    def one_f_noise(self, w, Tt, It, channel=0):
+    def one_f_noise(self, w, Tt, It, tes_channel=0):
         """
         TODO
         return in (muA)^2/Hz
         """
-        I_one_f = (1 + w ** 2 * self.tau_in() ** 2)
-        I_one_f /= (1 + w ** 2 * self.tau_eff(Tt, It, channel) ** 2)
-        I_one_f *= (self.tau_eff(Tt, It, channel) / self.tau_in()) ** 2
-        I_one_f *= It ** 2 * self.Rt(Tt) ** 2 * self.tes_fluct[channel] ** 2 / w / (self.Rt(Tt) + self.Rs) ** 2
+        I_one_f = (1 + w ** 2 * self.tau_in(tes_channel) ** 2)
+        I_one_f /= (1 + w ** 2 * self.tau_eff(Tt, It, tes_channel) ** 2)
+        I_one_f *= (self.tau_eff(Tt, It, tes_channel) / self.tau_in(tes_channel)) ** 2
+        I_one_f *= It ** 2 * self.Rt[tes_channel](Tt) ** 2 * self.tes_fluct[tes_channel] ** 2 / w / (
+                    self.Rt[tes_channel](Tt) + self.Rs[tes_channel]) ** 2
         return I_one_f
 
-    def emi_noise(self, w, Tt, It, channel=0):
+    def emi_noise(self, w, Tt, It, tes_channel=0):
         """
         TODO
         return in (muA)^2/Hz
         """
         # pdb.set_trace()
-        t_ch = np.arange(self.nmbr_components)[self.tes_flag][channel]
-        I_em = (1 - It ** 2 / self.Gb[t_ch] * self.dRtdT(Tt, channel)) ** 2 + w ** 2 * self.tau_in() ** 2
-        I_em /= (1 + w ** 2 * self.tau_eff(Tt, It, channel) ** 2)
-        I_em /= (self.Rt(Tt) + self.Rs) ** 2
-        I_em *= (self.tau_eff(Tt, It, channel) / self.tau_in()) ** 2
-        I_em *= (self.emi) ** 2 * self.power_freq[-w.shape[0]:]
+        t_ch = np.arange(self.nmbr_components)[self.tes_flag][tes_channel]
+        I_em = (1 - It ** 2 / self.Gb[t_ch] * self.dRtdT(Tt, tes_channel)) ** 2 + w ** 2 * self.tau_in(tes_channel) ** 2
+        I_em /= (1 + w ** 2 * self.tau_eff(Tt, It, tes_channel) ** 2)
+        I_em /= (self.Rt[tes_channel](Tt) + self.Rs[tes_channel]) ** 2
+        I_em *= (self.tau_eff(Tt, It, tes_channel) / self.tau_in(tes_channel)) ** 2
+        I_em *= (self.emi[tes_channel]) ** 2 * self.power_freq[-w.shape[0]:]
         return I_em
 
     # utils
@@ -846,15 +997,6 @@ class DetectorModule:
         self.offset = np.mean(self.squid_out_noise[self.t < self.t0], axis=0)
         self.ph = np.max(self.squid_out_noise[self.t >= self.t0] - self.offset, axis=0)
         self.rms = np.std(self.squid_out_noise[self.t < self.t0] - self.offset, axis=0)
-
-    def calc_par_(self):  # TODO make work with more components/tes/heaters
-        """
-        TODO
-        not used at this point
-        """
-        self.offset = np.mean(self.Il[:, self.t < self.t0], axis=1)
-        self.ph = np.max(self.Il[:, self.t >= self.t0] - self.offset, axis=1)
-        self.rms = np.std(self.Il[:, self.t < self.t0], axis=1)
 
     def append_buffer(self):
         """
@@ -869,9 +1011,10 @@ class DetectorModule:
         self.buffer_tpa.extend(self.tpa * np.ones(self.nmbr_tes))  # scalar
         self.buffer_timer.extend(self.timer * np.ones(self.nmbr_tes))  # scalar
         self.buffer_channel.extend(np.arange(self.nmbr_tes))
-        self.buffer_tes_resistance.extend(self.Rt(self.T[0, 0]) / self.Rt0 * np.ones(self.nmbr_tes))
+        self.buffer_tes_resistance.extend(self.Rt[0](self.T[0, 0]) / self.Rt0[0] * np.ones(
+            self.nmbr_tes))  # TODO buffer not okay for multiple channels!
         if self.store_raw:
-            pulse = self.squid_out_noise.reshape(256, -1)
+            pulse = self.squid_out_noise.reshape(256, -1)  # down sample for storage
             pulse = np.mean(pulse, axis=-1)
             self.buffer_pulses.append(pulse)
 

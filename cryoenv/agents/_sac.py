@@ -7,7 +7,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from cryoenv.buffers import ReplayBuffer
 
@@ -19,23 +19,25 @@ class SAC:
     CRITICS = {"QNetwork": QNetwork}
 
     def __init__(
-        self,
-        env: gym.Env,
-        policy: str = "GaussianPolicy",
-        critic: str = "QNetwork",
-        lr=3e-4,
-        weight_decay=1e-5,
-        hidden_dims=[256, 256],
-        buffer=None,
-        buffer_init_steps=1000,
-        buffer_size=1_000_000,
-        batch_size=256,
-        tau=0.005,  # update factor
-        gamma=0.99,  # discount factor
-        temperature=0.2,  # initial entropy coefficient
-        target_update_interval=1,
-        device="cpu",
-        entropy_tuning=True,  # activate automatic entropy tuning
+            self,
+            env: gym.Env,
+            policy: str = "GaussianPolicy",
+            critic: str = "QNetwork",
+            lr=3e-4,
+            weight_decay=1e-5,
+            hidden_dims=[256, 256],
+            buffer=None,
+            buffer_init_steps=1000,
+            buffer_size=1_000_000,
+            batch_size=256,
+            tau=0.005,  # update factor
+            gamma=0.99,  # discount factor
+            temperature=0.2,  # initial entropy coefficient
+            target_update_interval=1,
+            device="cpu",
+            entropy_tuning=True,  # activate automatic entropy tuning
+            gradient_steps=1,
+            learning_starts=1,
     ):
         self.device = device
         self.batch_size = batch_size
@@ -44,6 +46,8 @@ class SAC:
         self.alpha = torch.FloatTensor([temperature]).to(self.device)
         self.target_update_interval = target_update_interval
         self.entropy_tuning = entropy_tuning
+        self.gradient_steps = gradient_steps
+        self.learning_starts = learning_starts
 
         self.env = env
 
@@ -96,27 +100,30 @@ class SAC:
         self._fill_buffer()
         pbar = tqdm(range(episodes), leave=False)
         for episode in pbar:
-            state = self.env.reset(is_training=True)
-            score = 0
+            state = self.env.reset()  # is_training=True
+            avg_return = 0
             for i in tqdm(range(episode_steps), leave=False):
                 action = self._choose_action(state).cpu().detach().numpy()[0]
                 next_state, reward, done, info = self.env.step(action)
-                score += reward
+                avg_return += reward
                 self.buffer.store_transition(state, action, reward, next_state, done)
-                self._learn_step(episode, gradient_step=i, writer=writer)
+                if self.buffer.buffer_total > self.learning_starts:
+                    for j in range(self.gradient_steps):
+                        update_target_value = True if self.buffer.buffer_total % self.target_update_interval == 0 else False
+                        self._learn_step(update_target_value=update_target_value, writer=writer)
                 state = next_state
                 self.total_num_steps += 1
-                pbar.set_description(f"episode: {episode}, score: {score:.4f}")
+                pbar.set_description(f"episode: {episode}, avg_return: {avg_return/(i+1):.4f}")
 
-            if episode % 10 == 0:
-                obs = self.env.reset()
-                for i in range(100):
-                    _action = self.predict(obs)
-                    obs, _, _, _ = self.env.step(_action.detach().cpu().numpy()[0])
-                _rewards, _, _, _, _, _, _, _ = self.env.get_trajectory()
-                self.policy.train()
-                if writer is not None:
-                    writer.add_scalar("validation/reward", np.mean(_rewards), episode)
+            # if episode % 10 == 0:
+            #     obs = self.env.reset()
+            #     for i in range(100):
+            #         _action = self.predict(obs)
+            #         obs, _, _, _ = self.env.step(_action.detach().cpu().numpy()[0])
+            #     _rewards, _, _, _, _, _, _, _ = self.env.get_trajectory()
+            #     self.policy.train()
+            #     if writer is not None:
+            #         writer.add_scalar("validation/reward", np.mean(_rewards), episode)
 
     def predict(self, state):
         self.policy.eval()
@@ -138,7 +145,7 @@ class SAC:
             self.buffer.store_transition(state, action, reward, next_state, done)
             state = next_state
 
-    def _learn_step(self, episode, gradient_step, writer=None):
+    def _learn_step(self, update_target_value, writer=None):
         state, action, reward, next_state, _ = self.buffer.sample_buffer(
             self.batch_size
         )
@@ -153,8 +160,8 @@ class SAC:
                 next_state, next_actions
             )
             next_min_critic_target = (
-                torch.min(next_critic1_target, next_critic2_target)
-                - self.alpha * next_log_probs
+                    torch.min(next_critic1_target, next_critic2_target)
+                    - self.alpha * next_log_probs
             )
             next_q_value = reward + self.gamma * next_min_critic_target
 
@@ -178,14 +185,17 @@ class SAC:
 
         if self.entropy_tuning:
             alpha_loss = -(
-                self.log_alpha * (log_probs + self.target_entropy).detach()
+                    self.log_alpha * (log_probs + self.target_entropy).detach()
             ).mean()
             self.alpha_optim.zero_grad()
             alpha_loss.backward(retain_graph=True)
             self.alpha_optim.step()
             self.alpha = self.log_alpha.exp()
 
-        if gradient_step % self.target_update_interval == 0:
+        # if gradient_step % self.target_update_interval == 0:
+        #     self._update_target_value()
+
+        if update_target_value:
             self._update_target_value()
 
         if writer is not None:
@@ -216,7 +226,7 @@ class SAC:
             tau = self.tau
 
         for target_critic_param, critic_param in zip(
-            self.target_critic.parameters(), self.critic.parameters()
+                self.target_critic.parameters(), self.critic.parameters()
         ):
             target_critic_param.data.copy_(
                 target_critic_param.data * (1.0 - tau) + critic_param.data * tau
@@ -233,12 +243,12 @@ class SAC:
 
     @classmethod
     def load(
-        cls,
-        env,
-        path,
-        policy: str = "GaussianPolicy",
-        critic: str = "QNetwork",
-        device="cpu",
+            cls,
+            env,
+            path,
+            policy: str = "GaussianPolicy",
+            critic: str = "QNetwork",
+            device="cpu",
     ):
         """
         Loads only the policy weights for inference.
@@ -248,3 +258,11 @@ class SAC:
             torch.load(os.path.join(path, "policy.pt"), map_location=device)
         )
         return sac
+
+    def train(self):
+        self.policy.train()
+        self.critic.train()
+
+    def eval(self):
+        self.policy.eval()
+        self.critic.eval()

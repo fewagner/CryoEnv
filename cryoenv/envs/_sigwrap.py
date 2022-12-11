@@ -65,7 +65,7 @@ class CryoEnvSigWrapper(gym.Env):
         new_state[3 * self.ntes:3 * self.ntes + self.nheater] = self.detector.get('dac', norm=True)
         # new_state[3 * self.ntes + self.nheater:3 * self.ntes + 2 * self.nheater] = self.detector.get('tpa', norm=True)
 
-        reward = - np.sum(self.detector.rms * self.detector.tpa / self.detector.ph) - \
+        reward = - np.sum(self.detector.rms * self.detector.tpa / np.maximum(self.detector.ph, self.detector.rms)) - \
                  self.omega * np.sum((new_state[self.ntes:] - self.state[self.ntes:]) ** 2)
 
         self.state = new_state
