@@ -132,7 +132,7 @@ class DetectorModule:
         self.Tc = Tc
         self.Ib = Ib
         self.dac = dac
-        self.U_sq_Rh = dac
+        self.U_sq_Rh = np.copy(dac)
         self.C_out = C_out
         self.pulser_scale = pulser_scale
         self.heater_attenuator = heater_attenuator
@@ -704,7 +704,7 @@ class DetectorModule:
         T = 11.  # + 1e-3*t  # temp bath
         return T
 
-    def update_capacitor(self, delta_t):
+    def update_capacitor(self, delta_t):  # TODO issue1 something is broken here (?) that causes the upward temp drifts
         self.U_sq_Rh = (self.U_sq_Rh - self.dac) * np.exp(- delta_t / self.Rh / self.C_out) + self.dac
 
     def P(self, t, T, It, no_pulses=False):
@@ -1001,7 +1001,7 @@ class DetectorModule:
     def append_buffer(self):
         """
         TODO
-        Attention, the dac and tes channels are wrongly aligned! (problem for more components)
+        TODO Attention, the dac and tes channels are wrongly aligned! (problem for more components)
         """
         self.buffer_offset.extend(self.offset)  # scalar
         self.buffer_ph.extend(self.ph)  # scalar
