@@ -15,9 +15,9 @@ class CryoEnvSigWrapper(gym.Env):
     TODO
     """
 
-    metadata = {'render.modes': ['human']}
+    metadata = {'render_modes': ['human', 'mpl']}
 
-    def __init__(self, pars=None, omega=1e-2, sample_pars=False,
+    def __init__(self, pars=None, omega=1e-2, sample_pars=False, render_mode=None,
                  ):
         if pars is not None:
             self.pars = pars
@@ -31,6 +31,9 @@ class CryoEnvSigWrapper(gym.Env):
         self.ntes = self.detector.nmbr_tes
         self.nheater = self.detector.nmbr_heater
         self.omega = omega
+
+        assert render_mode is None or render_mode in self.metadata["render_modes"]
+        self.render_mode = render_mode
 
         self.action_space = spaces.Box(low=- np.ones(self.nmbr_actions),
                                        high=np.ones(self.nmbr_actions),
@@ -47,11 +50,11 @@ class CryoEnvSigWrapper(gym.Env):
 
         info = {}
 
-        self.detector.set_control(dac=action[:self.nheater],
+        self.detector.set_control(dac=action[:self.nheater],  # TODO test, is good?
                                   Ib=action[self.nheater:self.nheater + self.ntes],
                                   norm=True)
         self.detector.wait(seconds=self.detector.tp_interval - self.detector.t[-1])
-        self.detector.trigger(er=0.,
+        self.detector.trigger(er=np.zeros(self.detector.nmbr_components),  # TODO test, is good?
                               tpa=self.detector.tpa_queue[self.detector.tpa_idx],
                               verb=False)
         self.detector.tpa_idx += 1
@@ -70,27 +73,37 @@ class CryoEnvSigWrapper(gym.Env):
 
         self.state = new_state
 
-        done = False
+        terminated = False
+        truncated = False
 
-        return new_state, reward, done, info
+        return new_state, reward, terminated, truncated, info
 
     def reset(self):
+
+        info = {}
+
         self.detector.clear_buffer()
         self.detector.set_control(dac=-np.ones(self.detector.nmbr_heater),
                                   Ib=-np.ones(self.detector.nmbr_tes),
                                   norm=True)
         self.state = - np.ones(self.nmbr_observations)
-        return self.state
+        return self.state, info
 
-    def render(self, mode='human', save_path=None):
-        assert mode in ["human", "mpl"], "Invalid mode, must be either \"human\" or \"mpl\""
-        if mode == "human":
-            self.detector.plot_event(show=True)
+    def render(self, save_path=None):
+        if self.render_mode == "human":
+            # self.detector.plot_event(show=True)
+            self.detector.plot_temperatures(show=True)
+            self.detector.plot_tes(show=True)
 
-        elif mode == "mpl":
-            self.detector.plot_event(show=False)
+        elif self.render_mode == "mpl":
+            # self.detector.plot_event(show=False)
+            self.detector.plot_temperatures()
             if save_path is not None:
-                plt.savefig(save_path)
+                plt.savefig(save_path + '_temps')
+            plt.close()
+            self.detector.plot_tes()
+            if save_path is not None:
+                plt.savefig(save_path + '_tes')
             plt.close()
 
     def close(self):
