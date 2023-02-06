@@ -622,7 +622,7 @@ class DetectorModule:
         print('i sq: {} pA/sqrt(Hz)'.format(1e12 * self.i_sq[channel]))
         print('1 / f amplitude: {} '.format(self.tes_fluct[channel] ** 2))
 
-    def plot_buffer(self, tes_channel=0, tpa=None):
+    def plot_buffer(self, tes_channel=0, tpa=None, save_path=None):
         """
         TODO
         """
@@ -667,7 +667,10 @@ class DetectorModule:
 
         plt.suptitle('Buffer channel {}'.format(tes_channel))
         plt.tight_layout()
-        plt.show()
+        if save_path is not None:
+            plt.savefig(save_path, dpi=300)
+        else:
+            plt.show()
 
     def write_buffer(self, path):
         """

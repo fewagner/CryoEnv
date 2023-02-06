@@ -18,6 +18,7 @@ class CryoEnvSigWrapper(gym.Env):
     metadata = {'render_modes': ['human', 'mpl']}
 
     def __init__(self, pars=None, omega=1e-2, sample_pars=False, render_mode=None,
+                 rand_start = False, wait = 60,
                  ):
         if pars is not None:
             self.pars = pars
@@ -31,6 +32,8 @@ class CryoEnvSigWrapper(gym.Env):
         self.ntes = self.detector.nmbr_tes
         self.nheater = self.detector.nmbr_heater
         self.omega = omega
+        self.rand_start = rand_start
+        self.wait = wait
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
@@ -82,11 +85,39 @@ class CryoEnvSigWrapper(gym.Env):
 
         info = {}
 
-        self.detector.clear_buffer()
-        self.detector.set_control(dac=-np.ones(self.detector.nmbr_heater),
-                                  Ib=-np.ones(self.detector.nmbr_tes),
-                                  norm=True)
-        self.state = - np.ones(self.nmbr_observations)
+        if not self.rand_start:
+            self.detector.clear_buffer()
+            self.detector.set_control(dac=-np.ones(self.detector.nmbr_heater),
+                                      Ib=-np.ones(self.detector.nmbr_tes),
+                                      norm=True)
+            self.state = - np.ones(self.nmbr_observations)
+
+        else:
+            info = {}
+
+            self.detector.clear_buffer()
+            action = self.action_space.sample()
+            self.detector.tpa_idx = np.random.choice(len(self.detector.tpa_queue))
+
+            self.detector.set_control(dac=action[:self.nheater],
+                                      Ib=action[self.nheater:self.nheater + self.ntes],
+                                      norm=True)
+            self.detector.wait(seconds=self.wait)
+            self.detector.trigger(er=np.zeros(self.detector.nmbr_components),
+                                  tpa=self.detector.tpa_queue[self.detector.tpa_idx],
+                                  verb=False)
+            self.detector.tpa_idx += 1
+            if self.detector.tpa_idx + 1 > len(self.detector.tpa_queue):
+                self.detector.tpa_idx = 0
+
+            new_state = np.ones(self.nmbr_observations)
+            new_state[:self.ntes] = self.detector.get('ph', norm=True)
+            new_state[self.ntes:2 * self.ntes] = self.detector.get('rms', norm=True)
+            new_state[2 * self.ntes:3 * self.ntes] = self.detector.get('Ib', norm=True)
+            new_state[3 * self.ntes:3 * self.ntes + self.nheater] = self.detector.get('dac', norm=True)
+
+            self.state = new_state
+
         return self.state, info
 
     def render(self, save_path=None):
@@ -97,11 +128,11 @@ class CryoEnvSigWrapper(gym.Env):
 
         elif self.render_mode == "mpl":
             # self.detector.plot_event(show=False)
-            self.detector.plot_temperatures()
+            self.detector.plot_temperatures(show=False)
             if save_path is not None:
                 plt.savefig(save_path + '_temps')
             plt.close()
-            self.detector.plot_tes()
+            self.detector.plot_tes(show=False)
             if save_path is not None:
                 plt.savefig(save_path + '_tes')
             plt.close()

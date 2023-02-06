@@ -1,0 +1,157 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[1]:
+
+
+import numpy as np
+import time
+import matplotlib.pyplot as plt
+import os
+import json
+import gym
+import warnings
+
+import sys
+import time
+# from IPython.display import display, clear_output
+import torch
+import os
+import argparse
+
+from cryoenv.mqtt import SoftActorCritic, ReturnTracker, ReplayBuffer, check, subscribe, publish, connect_mqtt
+from cryoenv.envs import CryoEnvSigWrapper
+
+from mqtt_protocol import *
+from on_message import receive_as_control
+
+
+parser = argparse.ArgumentParser(description='Control CCS with a SoftActorCritic.')
+parser.add_argument('-r', '--inference', action='store_true', help='activate for inference, dont for training (buffer is cleared)')
+args = vars(parser.parse_args())
+
+# In[2]:
+
+
+np.random.seed(rseed)
+
+
+# In[3]:
+
+
+warnings.simplefilter('ignore')
+
+
+# In[4]:
+
+
+client_id = 'control-secondary'
+
+
+# In[5]:
+
+
+env = gym.make('cryoenv:cryoenv-sig-v0',
+                   omega=omega,
+                   sample_pars=False,
+                   pars={'store_raw': False,
+                         'max_buffer_len': buffer_size,
+                         'tpa_queue': tpa_queue,
+                         'pileup_prob': pileup_prob,
+                         'xi': np.array([xi]),
+                         'tau': np.array([tau]),},
+               render_mode='human',
+                   )
+
+
+# In[6]:
+
+
+state, info = env.reset()
+action = env.action_space.sample()
+
+
+# In[7]:
+
+
+buffer = ReplayBuffer(buffer_size=buffer_size, input_shape=(env.observation_space.shape[0],), 
+                      n_actions=env.action_space.shape[0], memmap_loc=path_buffer)
+
+
+# In[8]:
+
+
+agent = SoftActorCritic.load(env, path_models)
+
+
+# In[9]:
+
+if not args['inference']:
+    buffer.erase()
+    
+
+# In[10]:
+
+
+userdata = {'agent': agent,
+            'env': env,
+            'state': state,
+            'action': action,
+            'buffer': buffer,
+            'learning_starts': learning_starts, 
+            'path_models': path_models,
+            'greedy': False,
+            'channel': channel,
+            'omega': omega,
+            'set_pars_msg': set_pars_msg,
+            'subscribe_acknowledge_msg': subscribe_acknowledge_msg,
+            'trigger_msg': trigger_msg,
+            'acknowledge_msg': acknowledge_msg,
+            'adc_range': adc_range,
+            'dac_range': dac_range,
+            'Ib_range': Ib_range,
+           }
+
+client = connect_mqtt(broker, port, client_id, username, password, userdata = userdata)
+
+
+# In[11]:
+
+
+subscribe(client, subscribe_acknowledge_msg['topic'])
+subscribe(client, trigger_msg['topic'])
+subscribe(client, acknowledge_msg['topic'])
+
+
+# In[12]:
+
+
+client.on_message = receive_as_control
+
+
+# In[13]:
+
+
+channel_info = {"SubscribeToChannel": channel}
+result = client.publish(subscribe_channel_msg['topic'], json.dumps(channel_info))
+check(result)
+
+
+# In[14]:
+
+
+userdata['greedy'] = args['inference']
+
+
+# In[15]:
+
+
+client.loop_forever()
+
+
+
+# In[ ]:
+
+
+
+
