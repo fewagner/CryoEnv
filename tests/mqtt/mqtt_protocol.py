@@ -19,6 +19,7 @@ record_length = 16384
 # agent hyperpars
 batch_size = 16
 omega = 1e-2
+penalty = 1.
 gradient_steps = 100
 lr = 1e-3
 gamma = .6
@@ -29,8 +30,9 @@ xi = 1e2
 tau = 10
 
 # paths
-path_models = 'models/'
-path_buffer = 'data/'
+path_test = ''
+path_models = path_test + 'models/'
+path_buffer = path_test + 'data/'
 
 # messages from control
 subscribe_channel_msg = {

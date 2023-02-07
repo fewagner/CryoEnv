@@ -82,7 +82,7 @@ for path in [path_buffer, path_buffer + path_buffer_inference, path_models]:
 buffer = ReplayBuffer(buffer_size=buffer_size, input_shape=(env.observation_space.shape[0],), 
                       n_actions=env.action_space.shape[0], memmap_loc=path_buffer + path_buffer_inference)
 mode = 'r+' if os.path.isfile(path_buffer + path_buffer_inference + 'pulse_memory.npy') else 'w+'
-pulse_memory = np.memmap(path_buffer + path_buffer_inference + 'pulse_memory.npy', dtype=int, shape=(buffer_size, record_length), mode=mode)
+pulse_memory = np.memmap(path_buffer + path_buffer_inference + 'pulse_memory.npy', dtype=float, shape=(buffer_size, record_length), mode=mode)
 
 # In[8]:
 
@@ -93,7 +93,7 @@ agent = SoftActorCritic.load(env, path_models)
 # In[9]:
 
 buffer.erase()
-    
+pulse_memory[:] = 0.
 
 # In[10]:
 
@@ -109,6 +109,7 @@ userdata = {'agent': agent,
             'greedy': args['inference'],
             'channel': channel,
             'omega': omega,
+            'penalty': penalty,
             'set_pars_msg': set_pars_msg,
             'subscribe_acknowledge_msg': subscribe_acknowledge_msg,
             'trigger_msg': trigger_msg,

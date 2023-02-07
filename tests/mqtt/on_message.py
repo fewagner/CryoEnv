@@ -45,7 +45,10 @@ def receive_as_control(client, userdata, msg):
             
             rms = data['RMS']
             ph = np.maximum(data["PulseHeight"], rms/5)
-            reward = - rms * data['TPA'] / ph - userdata['omega'] * np.sum((new_state[1:] - userdata['state'][1:]) ** 2)
+            samples = np.array(data["Samples"]).flatten() / 65536. * 10.
+            lrdiff = np.mean(samples[-50:]) - np.mean(samples[:50])
+            penalty = userdata['penalty'] if lrdiff > ph/2 else 0.
+            reward = - rms * data['TPA'] / ph - userdata['omega'] * np.sum((new_state[1:] - userdata['state'][1:]) ** 2) - penalty
             print('Reward: ', reward)
             terminated = False
             truncated = False
@@ -56,7 +59,7 @@ def receive_as_control(client, userdata, msg):
                                           reward = reward, 
                                           next_state = new_state, 
                                           terminal = terminated)
-            userdata['pulse_memory'][userdata['buffer'].buffer_total[0], :] = np.array(data['Samples']).flatten()
+            userdata['pulse_memory'][userdata['buffer'].buffer_total[0], :] = samples
             print('buffer total: ', userdata['buffer'].buffer_total)
 
             # update state
