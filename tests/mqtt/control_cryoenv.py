@@ -86,9 +86,11 @@ pulse_memory = np.memmap(path_buffer + path_buffer_inference + 'pulse_memory.npy
 
 # In[8]:
 
-
-agent = SoftActorCritic.load(env, path_models)
-
+if os.path.isfile(path_models + 'policy.pt'):
+    agent = SoftActorCritic.load(env, path_models)
+else:
+    agent = SoftActorCritic(env, lr=lr, gamma=gamma, batch_size=batch_size, learning_starts=learning_starts, gradient_steps=gradient_steps, buffer_size=buffer_size, buffer=buffer, 
+                            device='cuda' if torch.cuda.is_available() else 'cpu')
 
 # In[9]:
 

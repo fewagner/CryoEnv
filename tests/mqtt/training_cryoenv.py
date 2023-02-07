@@ -83,8 +83,10 @@ agent.save(path_models)
 
 # In[8]:
 
-
-mtime = os.path.getmtime(path_buffer + 'state_memory.npy'.format(channel))
+if os.path.isfile(path_buffer + 'state_memory.npy'):
+    mtime = os.path.getmtime(path_buffer + 'state_memory.npy')
+else:
+    mtime = 0.
 print(mtime)
 
 
