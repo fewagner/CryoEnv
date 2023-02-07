@@ -99,6 +99,7 @@ terminated, truncated = False, False
 state, info = env.reset()
 steps = 0
 
+
 while not terminated and not truncated:
     
     time.sleep(testpulse_interval)
@@ -116,7 +117,7 @@ while not terminated and not truncated:
         'RMS': (new_state[1] + 1) / 2 * adc_range[1], 
         'DAC': dac_range[0] + (new_state[3] + 1) / 2 * (dac_range[1] - dac_range[0]), 
         'BiasCurrent': Ib_range[0] + (new_state[2] + 1) / 2 * (Ib_range[1] - Ib_range[0]), 
-        'Samples': (env.detector.get_record().flatten() * 10./65536.).tolist(),
+        'Samples': (env.detector.get_record().flatten() * 65536./10.).tolist(),
     }
     
     os.system('clear')
@@ -145,7 +146,7 @@ while not terminated and not truncated:
         env.detector.plot_buffer(save_path=path_buffer + 'env_buffer.png')
         print('Buffer plotted and saved in {}'.format(path_buffer))
         
-    if userdata['msg_received'] > 200:
+    if userdata['msg_received'] > env_steps:
         break
 
 

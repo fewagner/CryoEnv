@@ -11,7 +11,10 @@ rseed = 1
 adc_range = (-10., 10.)
 dac_range = (0., 2.)
 Ib_range = (0., 2.)
-testpulse_interval = 1.
+testpulse_interval = 2.
+env_steps = 300
+inference_steps = 30
+record_length = 16384
 
 # agent hyperpars
 batch_size = 16

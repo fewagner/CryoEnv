@@ -51,13 +51,13 @@ def receive_as_control(client, userdata, msg):
             truncated = False
 
             # write to buffer
-            if not userdata['greedy']:
-                userdata['buffer'].store_transition(state = userdata['state'], 
-                                              action = userdata['action'],
-                                              reward = reward, 
-                                              next_state = new_state, 
-                                              terminal = terminated)
-                print('buffer total: ', userdata['buffer'].buffer_total)
+            userdata['buffer'].store_transition(state = userdata['state'], 
+                                          action = userdata['action'],
+                                          reward = reward, 
+                                          next_state = new_state, 
+                                          terminal = terminated)
+            userdata['pulse_memory'][userdata['buffer'].buffer_total[0], :] = np.array(data['Samples']).flatten()
+            print('buffer total: ', userdata['buffer'].buffer_total)
 
             # update state
             userdata['state'] = new_state
@@ -84,6 +84,9 @@ def receive_as_control(client, userdata, msg):
 
             result = client.publish(userdata['set_pars_msg']['topic'], json.dumps(payload_response))
             check(result)
+            
+            if (userdata['greedy'] and userdata['buffer'].buffer_total[0] > userdata['inference_steps']) or (not userdata['greedy'] and userdata['buffer'].buffer_total[0] > userdata['env_steps']):
+                client.disconnect()
             
         else:
             print('Message topic unknown: ', msg.topic)

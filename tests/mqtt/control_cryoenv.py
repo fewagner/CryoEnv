@@ -27,7 +27,7 @@ from on_message import receive_as_control
 
 
 parser = argparse.ArgumentParser(description='Control CCS with a SoftActorCritic.')
-parser.add_argument('-r', '--inference', action='store_true', help='activate for inference, dont for training (buffer is cleared)')
+parser.add_argument('-r', '--inference', action='store_true', help='activate for inference, dont for training')
 args = vars(parser.parse_args())
 
 # In[2]:
@@ -73,10 +73,16 @@ action = env.action_space.sample()
 
 # In[7]:
 
+path_buffer_inference = 'inference/' if args['inference'] else ''
+
+for path in [path_buffer, path_buffer + path_buffer_inference, path_models]:
+    if not os.path.exists(path):
+        os.makedirs(path)
 
 buffer = ReplayBuffer(buffer_size=buffer_size, input_shape=(env.observation_space.shape[0],), 
-                      n_actions=env.action_space.shape[0], memmap_loc=path_buffer)
-
+                      n_actions=env.action_space.shape[0], memmap_loc=path_buffer + path_buffer_inference)
+mode = 'r+' if os.path.isfile(path_buffer + path_buffer_inference + 'pulse_memory.npy') else 'w+'
+pulse_memory = np.memmap(path_buffer + path_buffer_inference + 'pulse_memory.npy', dtype=int, shape=(buffer_size, record_length), mode=mode)
 
 # In[8]:
 
@@ -86,8 +92,7 @@ agent = SoftActorCritic.load(env, path_models)
 
 # In[9]:
 
-if not args['inference']:
-    buffer.erase()
+buffer.erase()
     
 
 # In[10]:
@@ -98,9 +103,10 @@ userdata = {'agent': agent,
             'state': state,
             'action': action,
             'buffer': buffer,
+            'pulse_memory': pulse_memory,
             'learning_starts': learning_starts, 
             'path_models': path_models,
-            'greedy': False,
+            'greedy': args['inference'],
             'channel': channel,
             'omega': omega,
             'set_pars_msg': set_pars_msg,
@@ -110,6 +116,8 @@ userdata = {'agent': agent,
             'adc_range': adc_range,
             'dac_range': dac_range,
             'Ib_range': Ib_range,
+            'env_steps': env_steps,
+            'inference_steps': inference_steps,
            }
 
 client = connect_mqtt(broker, port, client_id, username, password, userdata = userdata)
@@ -140,7 +148,7 @@ check(result)
 # In[14]:
 
 
-userdata['greedy'] = args['inference']
+# userdata['greedy'] = args['inference']
 
 
 # In[15]:
@@ -148,7 +156,7 @@ userdata['greedy'] = args['inference']
 
 client.loop_forever()
 
-
+print('DONE')
 
 # In[ ]:
 

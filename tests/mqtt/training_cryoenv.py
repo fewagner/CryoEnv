@@ -133,7 +133,7 @@ while True:
         break 
     
     if not args['offline']:
-        time.sleep(0.1)#testpulse_interval/2)
+        time.sleep(testpulse_interval/5)
 
 
 # In[ ]:
