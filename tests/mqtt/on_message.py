@@ -44,7 +44,7 @@ def receive_as_control(client, userdata, msg):
                                  ])
             
             rms = data['RMS']
-            ph = np.maximum(data["PulseHeight"], rms)
+            ph = np.maximum(data["PulseHeight"], rms/5)
             reward = - rms * data['TPA'] / ph - userdata['omega'] * np.sum((new_state[1:] - userdata['state'][1:]) ** 2)
             print('Reward: ', reward)
             terminated = False
