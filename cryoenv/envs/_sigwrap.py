@@ -18,7 +18,7 @@ class CryoEnvSigWrapper(gym.Env):
     metadata = {'render_modes': ['human', 'mpl']}
 
     def __init__(self, pars=None, omega=1e-2, sample_pars=False, render_mode=None,
-                 rand_start = False, wait = 60,
+                 rand_start = False, wait = 90, log_reward = False,
                  ):
         if pars is not None:
             self.pars = pars
@@ -34,6 +34,7 @@ class CryoEnvSigWrapper(gym.Env):
         self.omega = omega
         self.rand_start = rand_start
         self.wait = wait
+        self.log_reward = log_reward
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
@@ -71,8 +72,11 @@ class CryoEnvSigWrapper(gym.Env):
         new_state[3 * self.ntes:3 * self.ntes + self.nheater] = self.detector.get('dac', norm=True)
         # new_state[3 * self.ntes + self.nheater:3 * self.ntes + 2 * self.nheater] = self.detector.get('tpa', norm=True)
 
-        reward = - np.sum(self.detector.rms * self.detector.tpa / np.maximum(self.detector.ph, self.detector.rms)) - \
-                 self.omega * np.sum((new_state[self.ntes:] - self.state[self.ntes:]) ** 2)
+        if not self.log_reward:
+            reward = - np.sum(self.detector.rms * self.detector.tpa / np.maximum(self.detector.ph, self.detector.rms / 5))
+        else:
+            reward = - np.log(np.sum(self.detector.rms * self.detector.tpa / np.maximum(self.detector.ph, self.detector.rms / 5)))
+        reward -= self.omega * np.sum((new_state[self.ntes:] - self.state[self.ntes:]) ** 2)
 
         self.state = new_state
 
@@ -97,6 +101,7 @@ class CryoEnvSigWrapper(gym.Env):
 
             self.detector.clear_buffer()
             action = self.action_space.sample()
+            action[:self.nheater] = np.random.choice([-1, 1], size=self.nheater)
             self.detector.tpa_idx = np.random.choice(len(self.detector.tpa_queue))
 
             self.detector.set_control(dac=action[:self.nheater],

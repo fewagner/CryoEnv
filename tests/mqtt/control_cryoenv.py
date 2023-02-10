@@ -29,6 +29,7 @@ from on_message import receive_as_control
 parser = argparse.ArgumentParser(description='Control CCS with a SoftActorCritic.')
 parser.add_argument('-r', '--inference', action='store_true', help='activate for inference, dont for training')
 args = vars(parser.parse_args())
+print('Inputs processed.')
 
 # In[2]:
 
@@ -62,7 +63,7 @@ env = gym.make('cryoenv:cryoenv-sig-v0',
                          'tau': np.array([tau]),},
                render_mode='human',
                    )
-
+print('Env made.')
 
 # In[6]:
 
@@ -91,7 +92,8 @@ if os.path.isfile(path_models + 'policy.pt'):
 else:
     agent = SoftActorCritic(env, lr=lr, gamma=gamma, batch_size=batch_size, learning_starts=learning_starts, gradient_steps=gradient_steps, buffer_size=buffer_size, buffer=buffer, 
                             device='cuda' if torch.cuda.is_available() else 'cpu')
-
+print('Agent made.')
+    
 # In[9]:
 
 buffer.erase()
@@ -121,6 +123,9 @@ userdata = {'agent': agent,
             'Ib_range': Ib_range,
             'env_steps': env_steps,
             'inference_steps': inference_steps,
+            'log_reward': log_reward,
+            'steps_per_episode': steps_per_episode,
+            'timer': 0,
            }
 
 client = connect_mqtt(broker, port, client_id, username, password, userdata = userdata)

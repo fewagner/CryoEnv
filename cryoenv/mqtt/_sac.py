@@ -28,11 +28,11 @@ class QNetwork(nn.Module):
         input_channels = n_observations + n_actions
         for n_channels in hidden_dims:
             network_1.append(nn.Linear(input_channels, n_channels))
-            # network_1.append(nn.InstanceNorm1d(n_channels))
+            network_1.append(nn.InstanceNorm1d(n_channels))
             network_1.append(nn.ReLU())
 
             network_2.append(nn.Linear(input_channels, n_channels))
-            # network_2.append(nn.InstanceNorm1d(n_channels))
+            network_2.append(nn.InstanceNorm1d(n_channels))
             network_2.append(nn.ReLU())
 
             input_channels = n_channels
@@ -72,7 +72,7 @@ class GaussianPolicy(nn.Module):
         input_channels = n_observations
         for n_channels in hidden_dims:
             layers.append(nn.Linear(input_channels, n_channels))
-            # layers.append(nn.InstanceNorm1d(n_channels))
+            layers.append(nn.InstanceNorm1d(n_channels))
             layers.append(nn.ReLU())
             input_channels = n_channels
 
@@ -127,6 +127,7 @@ class SoftActorCritic(Agent):
             entropy_tuning=True,  # activate automatic entropy tuning
             gradient_steps=1,
             learning_starts=1,
+            grad_clipping=0.5,
     ):
         self.device = device
         self.batch_size = batch_size
@@ -137,6 +138,7 @@ class SoftActorCritic(Agent):
         self.entropy_tuning = entropy_tuning
         self.gradient_steps = gradient_steps
         self.learning_starts = learning_starts
+        self.grad_clipping = grad_clipping
 
         self.env = env
 
@@ -264,7 +266,7 @@ class SoftActorCritic(Agent):
         critic_loss = critic_1_loss + critic_2_loss
         self.critic_optim.zero_grad()
         critic_loss.backward(retain_graph=True)
-        torch.nn.utils.clip_grad_value_(self.critic.parameters(), 0.5)
+        torch.nn.utils.clip_grad_value_(self.critic.parameters(), self.grad_clipping)
         self.critic_optim.step()
 
         # train actor/policy with TD error
@@ -274,7 +276,7 @@ class SoftActorCritic(Agent):
         policy_loss = ((self.alpha * log_probs) - next_min_q).mean()
         self.policy_optim.zero_grad()
         policy_loss.backward(retain_graph=True)
-        torch.nn.utils.clip_grad_value_(self.policy.parameters(), 0.5)
+        torch.nn.utils.clip_grad_value_(self.policy.parameters(), self.grad_clipping)
         self.policy_optim.step()
 
         if self.entropy_tuning:

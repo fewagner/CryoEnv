@@ -76,24 +76,19 @@ buffer = ReplayBuffer(buffer_size=buffer_size, input_shape=(env.observation_spac
 
 writer = HistoryWriter()
 
-agent = SoftActorCritic(env, lr=lr, gamma=gamma, batch_size=batch_size, learning_starts=learning_starts, gradient_steps=gradient_steps, buffer_size=buffer_size, buffer=buffer, 
+agent = SoftActorCritic(env, lr=lr, gamma=gamma, batch_size=batch_size, learning_starts=learning_starts, gradient_steps=gradient_steps, buffer_size=buffer_size, buffer=buffer, tau=update_factor,
                         device='cuda' if torch.cuda.is_available() else 'cpu')
 agent.save(path_models)
 
 
 # In[8]:
 
-if os.path.isfile(path_buffer + 'state_memory.npy'):
-    mtime = os.path.getmtime(path_buffer + 'state_memory.npy')
-else:
-    mtime = 0.
-print(mtime)
-
-
-# In[9]:
-
-
-buffer.state_memory[:,1]
+while not os.path.isfile(path_buffer + 'state_memory.npy'):
+    print('waiting for buffer ...')
+    time.sleep(1.)
+    os.system('clear')
+mtime = os.path.getmtime(path_buffer + 'state_memory.npy')
+print('Buffer last modified: ', mtime)
 
 
 # In[10]:

@@ -2,6 +2,7 @@ import json
 import numpy as np
 # from IPython.display import display, clear_output
 import os
+import time
 
 from cryoenv.mqtt import SoftActorCritic, check
 
@@ -35,61 +36,78 @@ def receive_as_control(client, userdata, msg):
                     print(k,np.array(v).shape)
                 else:
                     print(k,v)
-
-            # calc state, reward - norm them
-            new_state = np.array([data["PulseHeight"] / userdata['adc_range'][1] * 2 - 1, 
-                                  data["RMS"] / userdata['adc_range'][1] * 2 - 1,
-                                  2 * (data["BiasCurrent"] - userdata['Ib_range'][0]) / (userdata['Ib_range'][1] - userdata['Ib_range'][0]) - 1,
-                                  2 * (data["DAC"] - userdata['dac_range'][0]) / (userdata['dac_range'][1] - userdata['dac_range'][0]) - 1,
-                                 ])
-            
-            rms = data['RMS']
-            ph = np.maximum(data["PulseHeight"], rms/5)
-            samples = np.array(data["Samples"]).flatten() / 65536. * 10.
-            lrdiff = np.mean(samples[-50:]) - np.mean(samples[:50])
-            penalty = userdata['penalty'] if lrdiff > ph/2 else 0.
-            reward = - rms * data['TPA'] / ph - userdata['omega'] * np.sum((new_state[1:] - userdata['state'][1:]) ** 2) - penalty
-            print('Reward: ', reward)
-            terminated = False
-            truncated = False
-
-            # write to buffer
-            userdata['buffer'].store_transition(state = userdata['state'], 
-                                          action = userdata['action'],
-                                          reward = reward, 
-                                          next_state = new_state, 
-                                          terminal = terminated)
-            userdata['pulse_memory'][userdata['buffer'].buffer_total[0], :] = samples
-            print('buffer total: ', userdata['buffer'].buffer_total)
-
-            # update state
-            userdata['state'] = new_state
-
-            # get new action
-            if userdata['buffer'].buffer_total > userdata['learning_starts']:
-                userdata['agent'] = SoftActorCritic.load(userdata['env'], userdata['path_models'])
-                action, _ = userdata['agent'].predict(userdata['state'], greedy=userdata['greedy']) 
-                greedy_action, greedy_likelihood = userdata['agent'].predict(userdata['state'], greedy=True)
-                print('greedy action is: {}, with likelihood: {}'.format(greedy_action, np.exp(greedy_likelihood)))
+                    
+            if data['TPA'] <= 0 or data['TPA'] >= 10.1:
+                print('Ignoring message with TPA not in (0, 10.1).')
+            elif time.time() - userdata['timer'] < 90:
+                print('Ignoring message, initialising new episode for another {} sec.'.format(90 - time.time() + userdata['timer']))
             else:
-                action = userdata['env'].action_space.sample().reshape(1,-1)
-                print('Taking random action.')
 
-            # respond
-            payload_response = {
-                "ChannelID": userdata['channel'],
-                "DAC": userdata['dac_range'][0] + (float(action[0,0]) + 1)/2*(userdata['dac_range'][1] - userdata['dac_range'][0]),
-                "BiasCurrent": userdata['Ib_range'][0] + (float(action[0,1]) + 1)/2*(userdata['Ib_range'][1] - userdata['Ib_range'][0]),
-            }
+                # calc state, reward - norm them
+                new_state = np.array([data["PulseHeight"] / userdata['adc_range'][1] * 2 - 1, 
+                                      data["RMS"] / userdata['adc_range'][1] * 2 - 1,
+                                      2 * (data["BiasCurrent"] - userdata['Ib_range'][0]) / (userdata['Ib_range'][1] - userdata['Ib_range'][0]) - 1,
+                                      2 * (data["DAC"] - userdata['dac_range'][0]) / (userdata['dac_range'][1] - userdata['dac_range'][0]) - 1,
+                                     ])
 
-            # plot 
-            print('message with greedy = {} respond: {}'.format(userdata['greedy'], payload_response))
+                rms = data['RMS']
+                ph = np.maximum(data["PulseHeight"], rms/5)
+                samples = np.array(data["Samples"]).flatten() / 65536. * 10.
+                lrdiff = np.mean(samples[-50:]) - np.mean(samples[:50])
+                penalty = userdata['penalty'] if lrdiff > ph/2 else 0.
+                if not userdata['log_reward']:
+                    reward = - rms * data['TPA'] / ph - userdata['omega'] * np.sum((new_state[1:] - userdata['state'][1:]) ** 2) - penalty
+                else:
+                    reward = - np.log(rms * data['TPA'] / ph) - userdata['omega'] * np.sum((new_state[1:] - userdata['state'][1:]) ** 2) - penalty
+                print('Reward: ', reward)
+                terminated = False
+                truncated = False
 
-            result = client.publish(userdata['set_pars_msg']['topic'], json.dumps(payload_response))
-            check(result)
-            
-            if (userdata['greedy'] and userdata['buffer'].buffer_total[0] > userdata['inference_steps']) or (not userdata['greedy'] and userdata['buffer'].buffer_total[0] > userdata['env_steps']):
-                client.disconnect()
+                # write to buffer
+                userdata['buffer'].store_transition(state = userdata['state'], 
+                                              action = userdata['action'],
+                                              reward = reward, 
+                                              next_state = new_state, 
+                                              terminal = terminated)
+                userdata['pulse_memory'][userdata['buffer'].buffer_total[0], :] = samples
+                print('buffer total: ', userdata['buffer'].buffer_total)
+
+                # update state
+                userdata['state'] = new_state
+
+                # get new action
+                if userdata['buffer'].buffer_total < userdata['learning_starts']:
+                    action = userdata['env'].action_space.sample().reshape(1,-1)
+                    print('Taking random action to fill buffer.')
+                elif not os.path.isfile(userdata['path_models'] + 'policy.pt'):
+                    action = userdata['env'].action_space.sample().reshape(1,-1)
+                    print('Taking random action b/c no policy.pt file in {}.'.format(userdata['path_models']))
+                elif userdata['buffer'].buffer_total % userdata['steps_per_episode'] == 0:
+                    action = userdata['env'].action_space.sample().reshape(1,-1)
+                    action[0,0] = np.random.choice([-1, 1], size=1)
+                    userdata['timer'] = time.time()
+                    print('Taking reset action to initialise new episode.')
+                else:
+                    userdata['agent'] = SoftActorCritic.load(userdata['env'], userdata['path_models'])
+                    action, _ = userdata['agent'].predict(userdata['state'], greedy=userdata['greedy']) 
+                    greedy_action, greedy_likelihood = userdata['agent'].predict(userdata['state'], greedy=True)
+                    print('greedy action is: {}, with likelihood: {}'.format(greedy_action, np.exp(greedy_likelihood)))
+
+                # respond
+                payload_response = {
+                    "ChannelID": userdata['channel'],
+                    "DAC": userdata['dac_range'][0] + (float(action[0,0]) + 1)/2*(userdata['dac_range'][1] - userdata['dac_range'][0]),
+                    "BiasCurrent": userdata['Ib_range'][0] + (float(action[0,1]) + 1)/2*(userdata['Ib_range'][1] - userdata['Ib_range'][0]),
+                }
+
+                # plot 
+                print('message with greedy = {} respond: {}'.format(userdata['greedy'], payload_response))
+
+                result = client.publish(userdata['set_pars_msg']['topic'], json.dumps(payload_response))
+                check(result)
+
+                if (userdata['greedy'] and userdata['buffer'].buffer_total[0] > userdata['inference_steps']) or (not userdata['greedy'] and userdata['buffer'].buffer_total[0] > userdata['env_steps']):
+                    client.disconnect()
             
         else:
             print('Message topic unknown: ', msg.topic)

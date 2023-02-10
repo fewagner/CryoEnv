@@ -49,12 +49,15 @@ client_id = 'daq-primary'
 env = gym.make('cryoenv:cryoenv-sig-v0',
                    omega=omega,
                    sample_pars=False,
+                   log_reward=log_reward,
                    pars={'store_raw': False,
                          'max_buffer_len': buffer_size,
                          'tpa_queue': tpa_queue,
                          'pileup_prob': pileup_prob,
                          'xi': np.array([xi]),
-                         'tau': np.array([tau]),},
+                         'tau': np.array([tau]), 
+                         'tp_interval': testpulse_interval,
+                         },
                render_mode='mpl',
                    )
 
