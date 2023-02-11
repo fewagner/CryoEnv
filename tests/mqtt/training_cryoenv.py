@@ -118,8 +118,8 @@ while True:
             time.sleep(.3)
     os.system('clear')
     mtime = current_mtime
-    greedy_action, greedy_likelihood = agent.predict(np.array([0,0,0,0]), greedy=True)
-    print('greedy action for state (0,0,0,0) is: {}, with likelihood: {}'.format(greedy_action, np.exp(greedy_likelihood)))
+    greedy_action, greedy_likelihood = agent.predict(np.array([0,0,0,0,0]), greedy=True)
+    print('greedy action for state (0,0,0,0,0) is: {}, with likelihood: {}'.format(greedy_action, np.exp(greedy_likelihood)))
     print('steps trained: {}, buffer last modified: {}'.format(steps_counter, mtime))    
 
     if steps_counter % 1000 == 0:

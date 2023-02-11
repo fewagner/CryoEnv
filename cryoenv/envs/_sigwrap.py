@@ -18,7 +18,7 @@ class CryoEnvSigWrapper(gym.Env):
     metadata = {'render_modes': ['human', 'mpl']}
 
     def __init__(self, pars=None, omega=1e-2, sample_pars=False, render_mode=None,
-                 rand_start = False, wait = 90, log_reward = False,
+                 rand_start=False, wait=90, log_reward=False,
                  ):
         if pars is not None:
             self.pars = pars
@@ -28,7 +28,7 @@ class CryoEnvSigWrapper(gym.Env):
             self.pars = sample_parameters(**self.pars)
         self.detector = DetectorModule(**self.pars)
         self.nmbr_actions = self.detector.nmbr_heater + self.detector.nmbr_tes
-        self.nmbr_observations = 3 * self.detector.nmbr_tes + 1 * self.detector.nmbr_heater
+        self.nmbr_observations = 3 * self.detector.nmbr_tes + 2 * self.detector.nmbr_heater
         self.ntes = self.detector.nmbr_tes
         self.nheater = self.detector.nmbr_heater
         self.omega = omega
@@ -44,7 +44,7 @@ class CryoEnvSigWrapper(gym.Env):
                                        dtype=np.float32)  # DACs, IBs
         self.observation_space = spaces.Box(low=- np.ones(self.nmbr_observations),
                                             high=np.ones(self.nmbr_observations),
-                                            dtype=np.float32)  # PHs, RMSs, IBs, DACs  # , TPAs
+                                            dtype=np.float32)  # PHs, RMSs, IBs, DACs, TPAs
 
         _ = self.reset()
 
@@ -54,7 +54,7 @@ class CryoEnvSigWrapper(gym.Env):
 
         info = {}
 
-        self.detector.set_control(dac=action[:self.nheater],  # TODO test, is good?
+        self.detector.set_control(dac=action[:self.nheater],
                                   Ib=action[self.nheater:self.nheater + self.ntes],
                                   norm=True)
         self.detector.wait(seconds=self.detector.tp_interval - self.detector.t[-1])
@@ -70,12 +70,14 @@ class CryoEnvSigWrapper(gym.Env):
         new_state[self.ntes:2 * self.ntes] = self.detector.get('rms', norm=True)
         new_state[2 * self.ntes:3 * self.ntes] = self.detector.get('Ib', norm=True)
         new_state[3 * self.ntes:3 * self.ntes + self.nheater] = self.detector.get('dac', norm=True)
-        # new_state[3 * self.ntes + self.nheater:3 * self.ntes + 2 * self.nheater] = self.detector.get('tpa', norm=True)
+        new_state[3 * self.ntes + self.nheater:3 * self.ntes + 2 * self.nheater] = self.detector.get('tpa', norm=True)
 
         if not self.log_reward:
-            reward = - np.sum(self.detector.rms * self.detector.tpa / np.maximum(self.detector.ph, self.detector.rms / 5))
+            reward = - np.sum(
+                self.detector.rms * self.detector.tpa / np.maximum(self.detector.ph, self.detector.rms / 5))
         else:
-            reward = - np.log(np.sum(self.detector.rms * self.detector.tpa / np.maximum(self.detector.ph, self.detector.rms / 5)))
+            reward = - np.log(
+                np.sum(self.detector.rms * self.detector.tpa / np.maximum(self.detector.ph, self.detector.rms / 5)))
         reward -= self.omega * np.sum((new_state[self.ntes:] - self.state[self.ntes:]) ** 2)
 
         self.state = new_state
@@ -101,7 +103,7 @@ class CryoEnvSigWrapper(gym.Env):
 
             self.detector.clear_buffer()
             action = self.action_space.sample()
-            action[:self.nheater] = np.random.choice([-1, 1], size=self.nheater)
+            # action[:self.nheater] = np.random.choice([-1, 1], size=self.nheater)
             self.detector.tpa_idx = np.random.choice(len(self.detector.tpa_queue))
 
             self.detector.set_control(dac=action[:self.nheater],
@@ -120,6 +122,8 @@ class CryoEnvSigWrapper(gym.Env):
             new_state[self.ntes:2 * self.ntes] = self.detector.get('rms', norm=True)
             new_state[2 * self.ntes:3 * self.ntes] = self.detector.get('Ib', norm=True)
             new_state[3 * self.ntes:3 * self.ntes + self.nheater] = self.detector.get('dac', norm=True)
+            new_state[3 * self.ntes + self.nheater:3 * self.ntes + 2 * self.nheater] = self.detector.get('tpa',
+                                                                                                         norm=True)
 
             self.state = new_state
 

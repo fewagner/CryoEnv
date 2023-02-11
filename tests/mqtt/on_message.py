@@ -48,6 +48,7 @@ def receive_as_control(client, userdata, msg):
                                       data["RMS"] / userdata['adc_range'][1] * 2 - 1,
                                       2 * (data["BiasCurrent"] - userdata['Ib_range'][0]) / (userdata['Ib_range'][1] - userdata['Ib_range'][0]) - 1,
                                       2 * (data["DAC"] - userdata['dac_range'][0]) / (userdata['dac_range'][1] - userdata['dac_range'][0]) - 1,
+                                      data["TPA"]/10 * 2 - 1,
                                      ])
 
                 rms = data['RMS']
@@ -84,7 +85,7 @@ def receive_as_control(client, userdata, msg):
                     print('Taking random action b/c no policy.pt file in {}.'.format(userdata['path_models']))
                 elif userdata['buffer'].buffer_total % userdata['steps_per_episode'] == 0:
                     action = userdata['env'].action_space.sample().reshape(1,-1)
-                    action[0,0] = np.random.choice([-1, 1], size=1)
+                    # action[0,0] = np.random.choice([-1, 1], size=1)
                     userdata['timer'] = time.time()
                     print('Taking reset action to initialise new episode.')
                 else:

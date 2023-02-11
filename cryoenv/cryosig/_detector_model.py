@@ -137,6 +137,7 @@ class DetectorModule:
         self.k = k
         self.Tc = Tc
         self.Ib = Ib
+        self.Ib_eff = np.copy(Ib)
         self.dac = dac
         self.U_sq_Rh = np.copy(dac)
         self.tau = tau
@@ -252,6 +253,7 @@ class DetectorModule:
         """
         self.timer += seconds
         self.update_capacitor(seconds)
+        self.update_bias(seconds)
         if update_T:
             self.pileup_t0 = None
             self.pileup_er = 0
@@ -320,6 +322,7 @@ class DetectorModule:
         if time_passes:
             self.timer += self.t[-1]
             self.update_capacitor(self.t[-1])
+            self.update_bias(self.t[-1])
 
     def sweep_dac(self, start, end, heater_channel=0, norm=False):
         """
@@ -722,6 +725,9 @@ class DetectorModule:
 
     def update_capacitor(self, delta_t):
         self.U_sq_Rh = (self.U_sq_Rh - self.dac) * np.exp(- delta_t / self.tau) + self.dac
+
+    def update_bias(self, delta_t):
+        self.Ib_eff = (self.Ib_eff - self.Ib) * np.exp(- delta_t / self.tau) + self.Ib
 
     def P(self, t, T, It, no_pulses=False):
         """
