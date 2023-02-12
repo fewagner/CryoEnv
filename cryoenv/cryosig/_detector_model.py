@@ -774,7 +774,7 @@ class DetectorModule:
                                           T)  # heat transfer to other components
         dTdIt[:nmbr_components] /= C  # heat to temperature
 
-        # electricalv
+        # electrical
         dTdIt[nmbr_components:] = Rs * Ib  #
         for i in range(Ib.shape[0]):
             c = np.nonzero(tes_flag)[0][i]

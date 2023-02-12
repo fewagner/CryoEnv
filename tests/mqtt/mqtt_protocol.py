@@ -10,27 +10,29 @@ buffer_size = 500
 rseed = 2
 adc_range = (-10., 10.)
 dac_range = (0., 5.)
-Ib_range = (0., 5.)
-testpulse_interval = 10.
-env_steps = 400
+Ib_range = (.5, 5.)
+testpulse_interval = 2.
+env_steps = 200
 steps_per_episode = 20
 inference_steps = 20
 record_length = 16384
 
 # agent hyperpars
 batch_size = 16
-omega = 1
-update_factor = 0.05
+omega = 0.
+update_factor = 0.005
 penalty = 0.
-gradient_steps = 10
-lr = 1e-2
+gradient_steps = 20
+lr = 3e-4
 gamma = .9
 learning_starts = 0
 tpa_queue = [1]
 pileup_prob = 0.
 xi = 1e2
 tau = 45
-log_reward = True
+log_reward = False
+tpa_in_state = True
+sweep = True
 
 # paths
 path_test = 'firstv1_1/'

@@ -19,7 +19,7 @@ import torch
 import os
 import argparse
 
-from cryoenv.mqtt import SoftActorCritic, ReturnTracker, ReplayBuffer, check, subscribe, publish, connect_mqtt
+from cryoenv.mqtt import SoftActorCritic, ReturnTracker, ReplayBuffer, check, subscribe, publish, connect_mqtt, generate_sweep
 from cryoenv.envs import CryoEnvSigWrapper
 
 from mqtt_protocol import *
@@ -55,6 +55,7 @@ client_id = 'control-secondary'
 env = gym.make('cryoenv:cryoenv-sig-v0',
                    omega=omega,
                    sample_pars=False,
+                   tpa_in_state=tpa_in_state,
                    pars={'store_raw': False,
                          'max_buffer_len': buffer_size,
                          'tpa_queue': tpa_queue,
@@ -126,6 +127,8 @@ userdata = {'agent': agent,
             'log_reward': log_reward,
             'steps_per_episode': steps_per_episode,
             'timer': 0,
+            'tpa_in_state': tpa_in_state,
+            'sweep': generate_sweep(nmbr_dac=8, nmbr_bias=5) if sweep else None
            }
 
 client = connect_mqtt(broker, port, client_id, username, password, userdata = userdata)

@@ -18,7 +18,7 @@ class CryoEnvSigWrapper(gym.Env):
     metadata = {'render_modes': ['human', 'mpl']}
 
     def __init__(self, pars=None, omega=1e-2, sample_pars=False, render_mode=None,
-                 rand_start=False, wait=90, log_reward=False,
+                 rand_start=False, wait=90, log_reward=False, tpa_in_state=True,
                  ):
         if pars is not None:
             self.pars = pars
@@ -28,13 +28,17 @@ class CryoEnvSigWrapper(gym.Env):
             self.pars = sample_parameters(**self.pars)
         self.detector = DetectorModule(**self.pars)
         self.nmbr_actions = self.detector.nmbr_heater + self.detector.nmbr_tes
-        self.nmbr_observations = 3 * self.detector.nmbr_tes + 2 * self.detector.nmbr_heater
+        if tpa_in_state:
+            self.nmbr_observations = 3 * self.detector.nmbr_tes + 2 * self.detector.nmbr_heater
+        else:
+            self.nmbr_observations = 3 * self.detector.nmbr_tes + self.detector.nmbr_heater
         self.ntes = self.detector.nmbr_tes
         self.nheater = self.detector.nmbr_heater
         self.omega = omega
         self.rand_start = rand_start
         self.wait = wait
         self.log_reward = log_reward
+        self.tpa_in_state = tpa_in_state
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
@@ -70,7 +74,8 @@ class CryoEnvSigWrapper(gym.Env):
         new_state[self.ntes:2 * self.ntes] = self.detector.get('rms', norm=True)
         new_state[2 * self.ntes:3 * self.ntes] = self.detector.get('Ib', norm=True)
         new_state[3 * self.ntes:3 * self.ntes + self.nheater] = self.detector.get('dac', norm=True)
-        new_state[3 * self.ntes + self.nheater:3 * self.ntes + 2 * self.nheater] = self.detector.get('tpa', norm=True)
+        if self.tpa_in_state:
+            new_state[3 * self.ntes + self.nheater:3 * self.ntes + 2 * self.nheater] = self.detector.get('tpa', norm=True)
 
         if not self.log_reward:
             reward = - np.sum(
@@ -122,7 +127,8 @@ class CryoEnvSigWrapper(gym.Env):
             new_state[self.ntes:2 * self.ntes] = self.detector.get('rms', norm=True)
             new_state[2 * self.ntes:3 * self.ntes] = self.detector.get('Ib', norm=True)
             new_state[3 * self.ntes:3 * self.ntes + self.nheater] = self.detector.get('dac', norm=True)
-            new_state[3 * self.ntes + self.nheater:3 * self.ntes + 2 * self.nheater] = self.detector.get('tpa',
+            if self.tpa_in_state:
+                new_state[3 * self.ntes + self.nheater:3 * self.ntes + 2 * self.nheater] = self.detector.get('tpa',
                                                                                                          norm=True)
 
             self.state = new_state

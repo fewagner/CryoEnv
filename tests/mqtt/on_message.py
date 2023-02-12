@@ -44,12 +44,19 @@ def receive_as_control(client, userdata, msg):
             else:
 
                 # calc state, reward - norm them
-                new_state = np.array([data["PulseHeight"] / userdata['adc_range'][1] * 2 - 1, 
-                                      data["RMS"] / userdata['adc_range'][1] * 2 - 1,
-                                      2 * (data["BiasCurrent"] - userdata['Ib_range'][0]) / (userdata['Ib_range'][1] - userdata['Ib_range'][0]) - 1,
-                                      2 * (data["DAC"] - userdata['dac_range'][0]) / (userdata['dac_range'][1] - userdata['dac_range'][0]) - 1,
-                                      data["TPA"]/10 * 2 - 1,
-                                     ])
+                if userdata['tpa_in_state']:
+                    new_state = np.array([data["PulseHeight"] / userdata['adc_range'][1] * 2 - 1, 
+                                          data["RMS"] / userdata['adc_range'][1] * 2 - 1,
+                                          2 * (data["BiasCurrent"] - userdata['Ib_range'][0]) / (userdata['Ib_range'][1] - userdata['Ib_range'][0]) - 1,
+                                          2 * (data["DAC"] - userdata['dac_range'][0]) / (userdata['dac_range'][1] - userdata['dac_range'][0]) - 1,
+                                          data["TPA"]/10 * 2 - 1,
+                                         ])
+                else:
+                    new_state = np.array([data["PulseHeight"] / userdata['adc_range'][1] * 2 - 1, 
+                      data["RMS"] / userdata['adc_range'][1] * 2 - 1,
+                      2 * (data["BiasCurrent"] - userdata['Ib_range'][0]) / (userdata['Ib_range'][1] - userdata['Ib_range'][0]) - 1,
+                      2 * (data["DAC"] - userdata['dac_range'][0]) / (userdata['dac_range'][1] - userdata['dac_range'][0]) - 1,
+                     ])
 
                 rms = data['RMS']
                 ph = np.maximum(data["PulseHeight"], rms/5)
@@ -77,7 +84,14 @@ def receive_as_control(client, userdata, msg):
                 userdata['state'] = new_state
 
                 # get new action
-                if userdata['buffer'].buffer_total < userdata['learning_starts']:
+                if userdata['sweep'] is not None:
+                    len_sweep = len(userdata['sweep'])
+                else:
+                    len_sweep = 0
+                if userdata['buffer'].buffer_total < len_sweep:
+                    action = userdata['sweep'][userdata['buffer'].buffer_total[0]].reshape(1,-1)
+                    print('Performing initial sweep, step nmbr {}/{}.'.format(userdata['buffer'].buffer_total[0]+1, len(userdata['sweep'])))
+                elif userdata['buffer'].buffer_total < userdata['learning_starts']:
                     action = userdata['env'].action_space.sample().reshape(1,-1)
                     print('Taking random action to fill buffer.')
                 elif not os.path.isfile(userdata['path_models'] + 'policy.pt'):
