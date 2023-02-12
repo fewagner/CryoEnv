@@ -1,12 +1,12 @@
 # mqtt info
-broker = 'localhost'  # 172.19.4.159  # 'broker.hivemq.com'
+broker = 'localhost'  # '172.19.4.159'  # 'broker.hivemq.com'
 port = 1883
 username = 'fwagner'
 password = '1234'
 
 # constants
 channel = 6
-buffer_size = 2000
+buffer_size = 500
 rseed = 2
 adc_range = (-10., 10.)
 dac_range = (0., 5.)
@@ -32,8 +32,8 @@ xi = 1e2
 tau = 45
 log_reward = False
 tpa_in_state = True
-sweep = False
-load = True
+sweep = True
+load = False
 
 # paths
 path_test = 'firstv1_2/'

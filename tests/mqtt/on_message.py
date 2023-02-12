@@ -45,11 +45,16 @@ def receive_as_control(client, userdata, msg):
 
                 # calc state, reward - norm them
                 if userdata['tpa_in_state']:
+                    relaxation_factor = np.exp(-userdata['testpulse_interval']/userdata['tau'])
+                    bias_normed = (2 * (data["BiasCurrent"] - userdata['Ib_range'][0]) / (userdata['Ib_range'][1] - userdata['Ib_range'][0]) - 1)
+                    dac_normed = 2 * (data["DAC"] - userdata['dac_range'][0]) / (userdata['dac_range'][1] - userdata['dac_range'][0]) - 1
                     new_state = np.array([data["PulseHeight"] / userdata['adc_range'][1] * 2 - 1, 
                                           data["RMS"] / userdata['adc_range'][1] * 2 - 1,
-                                          2 * (data["BiasCurrent"] - userdata['Ib_range'][0]) / (userdata['Ib_range'][1] - userdata['Ib_range'][0]) - 1,
-                                          2 * (data["DAC"] - userdata['dac_range'][0]) / (userdata['dac_range'][1] - userdata['dac_range'][0]) - 1,
+                                          bias_normed,
+                                          dac_normed,
                                           data["TPA"]/10 * 2 - 1,
+                                          userdata['state'][5]*relaxation_factor - (1 - relaxation_factor)*bias_normed,
+                                          userdata['state'][6]*relaxation_factor - (1 - relaxation_factor)*dac_normed
                                          ])
                 else:
                     new_state = np.array([data["PulseHeight"] / userdata['adc_range'][1] * 2 - 1, 
@@ -63,10 +68,12 @@ def receive_as_control(client, userdata, msg):
                 samples = np.array(data["Samples"]).flatten() / 65536. * 10.
                 lrdiff = np.mean(samples[-50:]) - np.mean(samples[:50])
                 penalty = userdata['penalty'] if lrdiff > ph/2 else 0.
-                if not userdata['log_reward']:
-                    reward = - rms * data['TPA'] / ph - userdata['omega'] * np.sum((new_state[1:] - userdata['state'][1:]) ** 2) - penalty
+                if userdata['log_reward']:
+                    reward = - np.log(rms * data['TPA'] / ph*(1+userdata['ph_amp'])) - userdata['omega'] * np.sum((new_state[1:] - userdata['state'][1:]) ** 2) - penalty
+                elif userdata['inv_reward']:
+                    reward = (1+userdata['ph_amp']) / rms / data['TPA'] /  - userdata['omega'] * np.sum((new_state[1:] - userdata['state'][1:]) ** 2) - penalty
                 else:
-                    reward = - np.log(rms * data['TPA'] / ph) - userdata['omega'] * np.sum((new_state[1:] - userdata['state'][1:]) ** 2) - penalty
+                    reward = - rms * data['TPA'] / (1+userdata['ph_amp']) - userdata['omega'] * np.sum((new_state[1:] - userdata['state'][1:]) ** 2) - penalty
                 print('Reward: ', reward)
                 terminated = False
                 truncated = False
@@ -99,7 +106,7 @@ def receive_as_control(client, userdata, msg):
                     print('Taking random action b/c no policy.pt file in {}.'.format(userdata['path_models']))
                 elif userdata['buffer'].buffer_total % userdata['steps_per_episode'] == 0 and not userdata['greedy']:
                     action = userdata['env'].action_space.sample().reshape(1,-1)
-                    # action[0,0] = np.random.choice([-1, 1], size=1)
+                    action[0,np.random.randint(0,1)] = np.random.choice([-1, 1], size=1)
                     userdata['timer'] = time.time()
                     print('Taking reset action to initialise new episode.')
                 else:

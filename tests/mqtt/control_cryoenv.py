@@ -97,8 +97,9 @@ print('Agent made.')
     
 # In[9]:
 
-buffer.erase()
-pulse_memory[:] = 0.
+if not load or args['inference']:
+    buffer.erase()
+    pulse_memory[:] = 0.
 
 # In[10]:
 
@@ -125,10 +126,14 @@ userdata = {'agent': agent,
             'env_steps': env_steps,
             'inference_steps': inference_steps,
             'log_reward': log_reward,
+            'inv_reward': False,
+            'ph_amp': 0.,
             'steps_per_episode': steps_per_episode,
             'timer': 0,
             'tpa_in_state': tpa_in_state,
-            'sweep': generate_sweep(nmbr_dac=8, nmbr_bias=5) if sweep else None
+            'sweep': generate_sweep(nmbr_dac=8, nmbr_bias=5) if sweep else None,
+            'testpulse_interval': testpulse_interval,
+            'tau': tau,
            }
 
 client = connect_mqtt(broker, port, client_id, username, password, userdata = userdata)

@@ -18,7 +18,7 @@ class CryoEnvSigWrapper(gym.Env):
     metadata = {'render_modes': ['human', 'mpl']}
 
     def __init__(self, pars=None, omega=1e-2, sample_pars=False, render_mode=None,
-                 rand_start=False, wait=90, log_reward=False, tpa_in_state=True,
+                 rand_start=False, relax_time=90, log_reward=False, tpa_in_state=True,
                  ):
         if pars is not None:
             self.pars = pars
@@ -29,16 +29,18 @@ class CryoEnvSigWrapper(gym.Env):
         self.detector = DetectorModule(**self.pars)
         self.nmbr_actions = self.detector.nmbr_heater + self.detector.nmbr_tes
         if tpa_in_state:
-            self.nmbr_observations = 3 * self.detector.nmbr_tes + 2 * self.detector.nmbr_heater
+            self.nmbr_observations = 4 * self.detector.nmbr_tes + 3 * self.detector.nmbr_heater
         else:
             self.nmbr_observations = 3 * self.detector.nmbr_tes + self.detector.nmbr_heater
         self.ntes = self.detector.nmbr_tes
         self.nheater = self.detector.nmbr_heater
         self.omega = omega
         self.rand_start = rand_start
-        self.wait = wait
+        self.relax_time = relax_time
         self.log_reward = log_reward
         self.tpa_in_state = tpa_in_state
+        self.dac_memory = np.zeros(self.detector.nmbr_heater)
+        self.Ib_memory = np.zeros(self.detector.nmbr_tes)
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
@@ -48,7 +50,7 @@ class CryoEnvSigWrapper(gym.Env):
                                        dtype=np.float32)  # DACs, IBs
         self.observation_space = spaces.Box(low=- np.ones(self.nmbr_observations),
                                             high=np.ones(self.nmbr_observations),
-                                            dtype=np.float32)  # PHs, RMSs, IBs, DACs, TPAs
+                                            dtype=np.float32)  # PHs, RMSs, IBs, DACs, TPAs, IB_mem, DAC_mem
 
         _ = self.reset()
 
@@ -75,7 +77,15 @@ class CryoEnvSigWrapper(gym.Env):
         new_state[2 * self.ntes:3 * self.ntes] = self.detector.get('Ib', norm=True)
         new_state[3 * self.ntes:3 * self.ntes + self.nheater] = self.detector.get('dac', norm=True)
         if self.tpa_in_state:
-            new_state[3 * self.ntes + self.nheater:3 * self.ntes + 2 * self.nheater] = self.detector.get('tpa', norm=True)
+            relax_factor = np.exp(-self.detector.tp_interval / self.relax_time)
+            new_state[3 * self.ntes + self.nheater:3 * self.ntes + 2 * self.nheater] = self.detector.get('tpa',
+                                                                                                         norm=True)
+            new_state[3 * self.ntes + 2 * self.nheater:4 * self.ntes + 2 * self.nheater] = \
+                self.state[3 * self.ntes + 2 * self.nheater:4 * self.ntes + 2 * self.nheater] * relax_factor - \
+                (1 - relax_factor) * self.detector.get('Ib', norm=True)
+            new_state[4 * self.ntes + 2 * self.nheater:4 * self.ntes + 3 * self.nheater] = \
+                self.state[4 * self.ntes + 2 * self.nheater:4 * self.ntes + 3 * self.nheater] * relax_factor - \
+                (1 - relax_factor) * self.detector.get('dac', norm=True)
 
         if not self.log_reward:
             reward = - np.sum(
@@ -108,13 +118,14 @@ class CryoEnvSigWrapper(gym.Env):
 
             self.detector.clear_buffer()
             action = self.action_space.sample()
-            # action[:self.nheater] = np.random.choice([-1, 1], size=self.nheater)
+            randflag = np.random.choice([True, False], size=self.nmbr_actions)
+            action[randflag] = np.random.choice([-1, 1], size=np.sum(randflag))
             self.detector.tpa_idx = np.random.choice(len(self.detector.tpa_queue))
 
             self.detector.set_control(dac=action[:self.nheater],
                                       Ib=action[self.nheater:self.nheater + self.ntes],
                                       norm=True)
-            self.detector.wait(seconds=self.wait)
+            self.detector.wait(seconds=2 * self.relax_time)
             self.detector.trigger(er=np.zeros(self.detector.nmbr_components),
                                   tpa=self.detector.tpa_queue[self.detector.tpa_idx],
                                   verb=False)
@@ -129,7 +140,11 @@ class CryoEnvSigWrapper(gym.Env):
             new_state[3 * self.ntes:3 * self.ntes + self.nheater] = self.detector.get('dac', norm=True)
             if self.tpa_in_state:
                 new_state[3 * self.ntes + self.nheater:3 * self.ntes + 2 * self.nheater] = self.detector.get('tpa',
-                                                                                                         norm=True)
+                                                                                                             norm=True)
+                new_state[3 * self.ntes + 2 * self.nheater:4 * self.ntes + 2 * self.nheater] = self.detector.get('Ib',
+                                                                                                                 norm=True)
+                new_state[4 * self.ntes + 2 * self.nheater:4 * self.ntes + 3 * self.nheater] = self.detector.get('dac',
+                                                                                                                 norm=True)
 
             self.state = new_state
 
