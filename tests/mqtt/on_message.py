@@ -88,16 +88,16 @@ def receive_as_control(client, userdata, msg):
                     len_sweep = len(userdata['sweep'])
                 else:
                     len_sweep = 0
-                if userdata['buffer'].buffer_total < len_sweep:
+                if userdata['buffer'].buffer_total < len_sweep and not userdata['greedy']:
                     action = userdata['sweep'][userdata['buffer'].buffer_total[0]].reshape(1,-1)
                     print('Performing initial sweep, step nmbr {}/{}.'.format(userdata['buffer'].buffer_total[0]+1, len(userdata['sweep'])))
-                elif userdata['buffer'].buffer_total < userdata['learning_starts']:
+                elif userdata['buffer'].buffer_total < userdata['learning_starts'] and not userdata['greedy']:
                     action = userdata['env'].action_space.sample().reshape(1,-1)
                     print('Taking random action to fill buffer.')
                 elif not os.path.isfile(userdata['path_models'] + 'policy.pt'):
                     action = userdata['env'].action_space.sample().reshape(1,-1)
                     print('Taking random action b/c no policy.pt file in {}.'.format(userdata['path_models']))
-                elif userdata['buffer'].buffer_total % userdata['steps_per_episode'] == 0:
+                elif userdata['buffer'].buffer_total % userdata['steps_per_episode'] == 0 and not userdata['greedy']:
                     action = userdata['env'].action_space.sample().reshape(1,-1)
                     # action[0,0] = np.random.choice([-1, 1], size=1)
                     userdata['timer'] = time.time()

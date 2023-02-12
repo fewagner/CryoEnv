@@ -14,6 +14,7 @@ import warnings
 import torch
 import pickle
 import argparse
+import shutil
 
 # from IPython.display import display, clear_output
 
@@ -72,17 +73,29 @@ action = env.action_space.sample()
 
 # In[7]:
 
+if load and path_load != path_test:
+    if os.path.isfile(path_test):
+        os.rmdir(path_test)
+    shutil.copytree(path_load, path_test)
+
+# In[8]:
+
+for path in [path_buffer, path_models]:
+    if not os.path.exists(path):
+        os.makedirs(path)
 
 buffer = ReplayBuffer(buffer_size=buffer_size, input_shape=(env.observation_space.shape[0],), n_actions=env.action_space.shape[0], memmap_loc=path_buffer)
 
 writer = HistoryWriter()
 
-agent = SoftActorCritic(env, lr=lr, gamma=gamma, batch_size=batch_size, learning_starts=learning_starts, gradient_steps=gradient_steps, buffer_size=buffer_size, buffer=buffer, tau=update_factor,
-                        device='cuda' if torch.cuda.is_available() else 'cpu')
-agent.save(path_models)
+if not load:
+    agent = SoftActorCritic(env, lr=lr, gamma=gamma, batch_size=batch_size, learning_starts=learning_starts, gradient_steps=gradient_steps, buffer_size=buffer_size, buffer=buffer, tau=update_factor,
+                            device='cuda' if torch.cuda.is_available() else 'cpu')
+    agent.save(path_models)
+else:
+    agent = SoftActorCritic.load(env, path_models, load_critic=True, lr=lr, gamma=gamma, batch_size=batch_size, learning_starts=learning_starts, gradient_steps=gradient_steps, buffer_size=buffer_size, buffer=buffer, tau=update_factor, device='cuda' if torch.cuda.is_available() else 'cpu')
 
-
-# In[8]:
+# In[9]:
 
 while not os.path.isfile(path_buffer + 'state_memory.npy'):
     print('waiting for buffer ...')

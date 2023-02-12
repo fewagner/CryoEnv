@@ -342,14 +342,23 @@ class SoftActorCritic(Agent):
             policy: str = "GaussianPolicy",
             critic: str = "QNetwork",
             device="cpu",
+            load_critic = False,
+            **kwargs,
     ):
         """
-        Loads only the policy weights for inference.
+        Loads the policy weights and optionally the critic for inference.
         """
-        sac = cls(env, policy, critic)
+        sac = cls(env, policy, critic, **kwargs)
         sac.policy.load_state_dict(
             torch.load(os.path.join(path, "policy.pt"), map_location=device)
         )
+        if load_critic:
+            sac.critic.load_state_dict(
+                torch.load(os.path.join(path, "critic.pt"), map_location=device)
+            )
+            sac.target_critic.load_state_dict(
+                torch.load(os.path.join(path, "target_critic.pt"), map_location=device)
+            )
         return sac
 
     def train(self):

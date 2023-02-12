@@ -5,16 +5,16 @@ username = 'fwagner'
 password = '1234'
 
 # constants
-channel = 1
-buffer_size = 500
+channel = 6
+buffer_size = 2000
 rseed = 2
 adc_range = (-10., 10.)
 dac_range = (0., 5.)
 Ib_range = (.5, 5.)
-testpulse_interval = 2.
+testpulse_interval = 10.
 env_steps = 200
-steps_per_episode = 20
-inference_steps = 20
+steps_per_episode = 40
+inference_steps = 40
 record_length = 16384
 
 # agent hyperpars
@@ -24,7 +24,7 @@ update_factor = 0.005
 penalty = 0.
 gradient_steps = 20
 lr = 3e-4
-gamma = .9
+gamma = .99
 learning_starts = 0
 tpa_queue = [1]
 pileup_prob = 0.
@@ -32,12 +32,15 @@ xi = 1e2
 tau = 45
 log_reward = False
 tpa_in_state = True
-sweep = True
+sweep = False
+load = True
 
 # paths
-path_test = 'firstv1_1/'
+path_test = 'firstv1_2/'
 path_models = path_test + 'models/'
 path_buffer = path_test + 'data/'
+
+path_load = 'firstv1_1/'
 
 # messages from control
 subscribe_channel_msg = {
