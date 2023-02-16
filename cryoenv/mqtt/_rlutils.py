@@ -172,10 +172,11 @@ class ReplayBuffer:
     
 def generate_sweep(nmbr_dac,nmbr_bias):
     sweep = []
-    dacs = np.linspace(-1,1,nmbr_dac)
+    dacs = np.linspace(1,-1,nmbr_dac)
     bias = np.linspace(-1,1,nmbr_bias)
-    for i,b in enumerate(bias):
-        array = np.flip(dacs) if i%2==0 else dacs
-        for d in array:
-            sweep.append([d,b])
+    for i,d in enumerate(dacs):
+        array = np.flip(bias) if i%2==1 else bias
+        sgn = +1 if i%2==1 else -1
+        for j,b in enumerate(array):
+            sweep.append([d,b+sgn*j/(nmbr_bias-1)/nmbr_bias/2])
     return np.array(sweep)

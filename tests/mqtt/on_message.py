@@ -53,8 +53,8 @@ def receive_as_control(client, userdata, msg):
                                           bias_normed,
                                           dac_normed,
                                           data["TPA"]/10 * 2 - 1,
-                                          userdata['state'][5]*relaxation_factor - (1 - relaxation_factor)*bias_normed,
-                                          userdata['state'][6]*relaxation_factor - (1 - relaxation_factor)*dac_normed
+                                          # userdata['state'][5]*relaxation_factor - (1 - relaxation_factor)*bias_normed,
+                                          # userdata['state'][6]*relaxation_factor - (1 - relaxation_factor)*dac_normed
                                          ])
                 else:
                     new_state = np.array([data["PulseHeight"] / userdata['adc_range'][1] * 2 - 1, 
@@ -64,16 +64,16 @@ def receive_as_control(client, userdata, msg):
                      ])
 
                 rms = data['RMS']
-                ph = np.maximum(data["PulseHeight"], rms/5)
+                ph = np.maximum(data["PulseHeight"], rms)
                 samples = np.array(data["Samples"]).flatten() / 65536. * 10.
                 lrdiff = np.mean(samples[-50:]) - np.mean(samples[:50])
                 penalty = userdata['penalty'] if lrdiff > ph/2 else 0.
                 if userdata['log_reward']:
                     reward = - np.log(rms * data['TPA'] / ph*(1+userdata['ph_amp'])) - userdata['omega'] * np.sum((new_state[1:] - userdata['state'][1:]) ** 2) - penalty
                 elif userdata['inv_reward']:
-                    reward = (1+userdata['ph_amp']) / rms / data['TPA'] /  - userdata['omega'] * np.sum((new_state[1:] - userdata['state'][1:]) ** 2) - penalty
+                    reward = ph*(1+userdata['ph_amp']) / rms / data['TPA'] - userdata['omega'] * np.sum((new_state[1:] - userdata['state'][1:]) ** 2) - penalty
                 else:
-                    reward = - rms * data['TPA'] / (1+userdata['ph_amp']) - userdata['omega'] * np.sum((new_state[1:] - userdata['state'][1:]) ** 2) - penalty
+                    reward = - rms * data['TPA'] / ph*(1+userdata['ph_amp']) - userdata['omega'] * np.sum((new_state[1:] - userdata['state'][1:]) ** 2) - penalty
                 print('Reward: ', reward)
                 terminated = False
                 truncated = False

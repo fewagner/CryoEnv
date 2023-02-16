@@ -5,15 +5,15 @@ username = 'fwagner'
 password = '1234'
 
 # constants
-channel = 6
-buffer_size = 500
+channel = 1
+buffer_size = 1200
 rseed = 2
 adc_range = (-10., 10.)
 dac_range = (0., 5.)
 Ib_range = (.5, 5.)
-testpulse_interval = 10.
-env_steps = 200
-steps_per_episode = 40
+testpulse_interval = 20.
+env_steps = 1200
+steps_per_episode = 120
 inference_steps = 40
 record_length = 16384
 
@@ -24,9 +24,9 @@ update_factor = 0.005
 penalty = 0.
 gradient_steps = 20
 lr = 3e-4
-gamma = .99
+gamma = .9
 learning_starts = 0
-tpa_queue = [1]
+tpa_queue = [0.1, 0.5, 1., 2., 3., 4., 5., 6., 7., 8., 9., 10.]
 pileup_prob = 0.
 xi = 1e2
 tau = 45
@@ -36,7 +36,7 @@ sweep = True
 load = False
 
 # paths
-path_test = 'firstv1_2/'
+path_test = '/Users/felix/PycharmProjects/rltest_data/mqtt_tests/'
 path_models = path_test + 'models/'
 path_buffer = path_test + 'data/'
 
