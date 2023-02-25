@@ -38,7 +38,11 @@ def receive_as_control(client, userdata, msg):
                     print(k,v)
                     
             if data['TPA'] <= 0 or data['TPA'] >= 10.1:
-                print('Ignoring message with TPA not in (0, 10.1).')
+                if data['TPA'] == 20.:
+                    userdata['cph'] = data['PulseHeight']
+                    print('Received control pulse, set cph value.')
+                else:
+                    print('Ignoring message with TPA not in (0, 10.1).')
             elif time.time() - userdata['timer'] < 90:
                 print('Ignoring message, initialising new episode for another {} sec.'.format(90 - time.time() + userdata['timer']))
             else:
@@ -48,19 +52,21 @@ def receive_as_control(client, userdata, msg):
                     relaxation_factor = np.exp(-userdata['testpulse_interval']/userdata['tau'])
                     bias_normed = (2 * (data["BiasCurrent"] - userdata['Ib_range'][0]) / (userdata['Ib_range'][1] - userdata['Ib_range'][0]) - 1)
                     dac_normed = 2 * (data["DAC"] - userdata['dac_range'][0]) / (userdata['dac_range'][1] - userdata['dac_range'][0]) - 1
-                    new_state = np.array([data["PulseHeight"] / userdata['adc_range'][1] * 2 - 1, 
-                                          data["RMS"] / userdata['adc_range'][1] * 2 - 1,
+                    new_state = np.array([data["PulseHeight"] / data["BiasCurrent"] / userdata['adc_range'][1] * 2 - 1, 
+                                          data["RMS"] / data["BiasCurrent"] / userdata['adc_range'][1] * 2 - 1,
                                           bias_normed,
                                           dac_normed,
                                           data["TPA"]/10 * 2 - 1,
                                           # userdata['state'][5]*relaxation_factor - (1 - relaxation_factor)*bias_normed,
-                                          # userdata['state'][6]*relaxation_factor - (1 - relaxation_factor)*dac_normed
+                                          # userdata['state'][6]*relaxation_factor - (1 - relaxation_factor)*dac_normed,
+                                          userdata["cph"] / data["BiasCurrent"] / userdata['adc_range'][1] * 2 - 1, 
                                          ])
                 else:
-                    new_state = np.array([data["PulseHeight"] / userdata['adc_range'][1] * 2 - 1, 
-                      data["RMS"] / userdata['adc_range'][1] * 2 - 1,
+                    new_state = np.array([data["PulseHeight"] / data["BiasCurrent"] / userdata['adc_range'][1] * 2 - 1,  #  / data["BiasCurrent"]
+                      data["RMS"] / data["BiasCurrent"] / userdata['adc_range'][1] * 2 - 1,  #  / data["BiasCurrent"]
                       2 * (data["BiasCurrent"] - userdata['Ib_range'][0]) / (userdata['Ib_range'][1] - userdata['Ib_range'][0]) - 1,
                       2 * (data["DAC"] - userdata['dac_range'][0]) / (userdata['dac_range'][1] - userdata['dac_range'][0]) - 1,
+                      userdata["cph"] / data["BiasCurrent"] / userdata['adc_range'][1] * 2 - 1, 
                      ])
 
                 rms = data['RMS']
@@ -69,11 +75,11 @@ def receive_as_control(client, userdata, msg):
                 lrdiff = np.mean(samples[-50:]) - np.mean(samples[:50])
                 penalty = userdata['penalty'] if lrdiff > ph/2 else 0.
                 if userdata['log_reward']:
-                    reward = - np.log(rms * data['TPA'] / ph*(1+userdata['ph_amp'])) - userdata['omega'] * np.sum((new_state[1:] - userdata['state'][1:]) ** 2) - penalty
+                    reward = - np.log(rms * data['TPA'] / ph*(1+userdata['ph_amp'])) - userdata['omega'] * np.sum((new_state[2:4] - userdata['state'][2:4]) ** 2) - penalty
                 elif userdata['inv_reward']:
-                    reward = ph*(1+userdata['ph_amp']) / rms / data['TPA'] - userdata['omega'] * np.sum((new_state[1:] - userdata['state'][1:]) ** 2) - penalty
+                    reward = ph*(1+userdata['ph_amp']) / rms / data['TPA'] - userdata['omega'] * np.sum((new_state[2:4] - userdata['state'][2:4]) ** 2) - penalty
                 else:
-                    reward = - rms * data['TPA'] / ph*(1+userdata['ph_amp']) - userdata['omega'] * np.sum((new_state[1:] - userdata['state'][1:]) ** 2) - penalty
+                    reward = - rms / ph*(1+userdata['ph_amp']) - userdata['omega'] * np.sum((new_state[2:4] - userdata['state'][2:4]) ** 2) - penalty  #  * data['TPA']
                 print('Reward: ', reward)
                 terminated = False
                 truncated = False
@@ -84,7 +90,7 @@ def receive_as_control(client, userdata, msg):
                                               reward = reward, 
                                               next_state = new_state, 
                                               terminal = terminated)
-                userdata['pulse_memory'][userdata['buffer'].buffer_total[0], :] = samples
+                userdata['pulse_memory'][userdata['buffer'].buffer_counter[0], :] = samples
                 print('buffer total: ', userdata['buffer'].buffer_total)
 
                 # update state

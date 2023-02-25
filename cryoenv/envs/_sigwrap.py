@@ -29,9 +29,9 @@ class CryoEnvSigWrapper(gym.Env):
         self.detector = DetectorModule(**self.pars)
         self.nmbr_actions = self.detector.nmbr_heater + self.detector.nmbr_tes
         if tpa_in_state:
-            self.nmbr_observations = 3 * self.detector.nmbr_tes + 2 * self.detector.nmbr_heater
+            self.nmbr_observations = 3 * self.detector.nmbr_tes + 3 * self.detector.nmbr_heater
         else:
-            self.nmbr_observations = 3 * self.detector.nmbr_tes + self.detector.nmbr_heater
+            self.nmbr_observations = 3 * self.detector.nmbr_tes + 2 * self.detector.nmbr_heater
         self.ntes = self.detector.nmbr_tes
         self.nheater = self.detector.nmbr_heater
         self.omega = omega
@@ -50,7 +50,7 @@ class CryoEnvSigWrapper(gym.Env):
                                        dtype=np.float32)  # DACs, IBs
         self.observation_space = spaces.Box(low=- np.ones(self.nmbr_observations),
                                             high=np.ones(self.nmbr_observations),
-                                            dtype=np.float32)  # PHs, RMSs, IBs, DACs, TPAs
+                                            dtype=np.float32)  # PHs, RMSs, IBs, DACs, TPA, CPs
 
         _ = self.reset()
 

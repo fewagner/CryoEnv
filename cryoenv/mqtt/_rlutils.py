@@ -178,5 +178,5 @@ def generate_sweep(nmbr_dac,nmbr_bias):
         array = np.flip(bias) if i%2==1 else bias
         sgn = +1 if i%2==1 else -1
         for j,b in enumerate(array):
-            sweep.append([d,b+sgn*j/(nmbr_bias-1)/nmbr_bias/2])
+            sweep.append([d,b+sgn*j/(nmbr_bias-1)/nmbr_bias])
     return np.array(sweep)

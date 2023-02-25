@@ -65,6 +65,8 @@ env = gym.make('cryoenv:cryoenv-sig-v0',
                render_mode='human',
                    )
 print('Env made.')
+print('Env observation space: ', env.observation_space.shape)
+print('Env action space: ', env.action_space.shape)
 
 # In[6]:
 
@@ -131,9 +133,10 @@ userdata = {'agent': agent,
             'steps_per_episode': steps_per_episode,
             'timer': 0,
             'tpa_in_state': tpa_in_state,
-            'sweep': generate_sweep(nmbr_dac=8, nmbr_bias=5) if sweep else None,
+            'sweep': generate_sweep(nmbr_dac=12, nmbr_bias=10) if sweep else None,
             'testpulse_interval': testpulse_interval,
             'tau': tau,
+            'cph': 1e-5,
            }
 
 client = connect_mqtt(broker, port, client_id, username, password, userdata = userdata)
@@ -156,7 +159,7 @@ client.on_message = receive_as_control
 # In[13]:
 
 
-channel_info = {"SubscribeToChannel": channel}
+channel_info = {"SubscribeToChannel": [channel]}
 result = client.publish(subscribe_channel_msg['topic'], json.dumps(channel_info))
 check(result)
 
