@@ -132,7 +132,7 @@ class ReplayBuffer:
 
     def sample_buffer(self, batch_size):
         buffer_counter = np.array(self.buffer_counter).reshape(1)[0]
-        if self.buffer_counter < self.buffer_size:
+        if self.buffer_total < self.buffer_size:
             batch_idxs = np.random.choice(buffer_counter, batch_size)
         else:
             batch_idxs = np.random.choice(self.buffer_size, batch_size)

@@ -19,6 +19,7 @@ import torch.nn as nn
 
 class CryoWorldModel(nn.Module):
     # tuned to 7 obs: (ph, rms, ib, dac, tpa, ib_m, dac_m), 2 act: (dac, ib)
+    # TODO adapt to no memory states and TPA
     
     def __init__(self, memory_factor=0.8, curiosity_factor=0.1, hidden_dims=[256, 256], lr=3e-4, weight_decay=1e-5, device="cpu"):
         super(CryoWorldModel, self).__init__()
