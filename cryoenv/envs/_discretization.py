@@ -1,7 +1,6 @@
 import numpy as np
 import numba as nb
 
-@nb.njit
 def action_to_discrete(reset: np.ndarray, V_decrease: np.ndarray, wait: np.ndarray,
                        wait_iv: tuple = (2, 100), V_iv: tuple = (0, 99), wait_step=2, V_step=1, check_input=True):
     if check_input:
@@ -42,7 +41,7 @@ def action_to_discrete(reset: np.ndarray, V_decrease: np.ndarray, wait: np.ndarr
     #     assert n < nmbr_n, 'The calculated n is larger than the number of n - check the conversion function!'
     return n
 
-# @nb.njit
+
 def action_from_discrete(n, nmbr_channels, wait_iv=(2, 100), V_iv=(0, 99), wait_step=2, V_step=1, check_input=True):
     m = int((V_iv[1] - V_iv[0]) / V_step + 2)  # nmbr discrete dV and the reset per channel
     k = int((wait_iv[1] - wait_iv[0]) / wait_step + 1)  # nmbr discrete wait (for all channels)
@@ -73,7 +72,7 @@ def action_from_discrete(n, nmbr_channels, wait_iv=(2, 100), V_iv=(0, 99), wait_
 
     return np.array(reset), np.array(V_decrease), np.array(wait)
 
-# @nb.njit
+
 def observation_to_discrete(V_set: np.ndarray, ph: np.ndarray, V_iv=(0, 99), ph_iv=(0, 0.99), V_step=1, ph_step=0.01, check_input=True):
     if check_input:
         assert all(np.round(p / ph_step * 10e6) / 10e6 % 1 == 0 for p in ph), "ph has to be multiple of {}".format(ph_step)
@@ -109,7 +108,7 @@ def observation_to_discrete(V_set: np.ndarray, ph: np.ndarray, V_iv=(0, 99), ph_
     # print('n: ', n)
     return n
 
-# @nb.njit
+
 def observation_from_discrete(n, nmbr_channels, V_iv=(0, 99), ph_iv=(0, 0.99), V_step=1, ph_step=0.01, check_input=True):
     nmbr_discrete_V = int((V_iv[1] - V_iv[0]) / V_step + 1)
     nmbr_discrete_ph = int((ph_iv[1] - ph_iv[0]) / ph_step + 1)

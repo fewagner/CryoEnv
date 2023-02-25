@@ -41,13 +41,14 @@ class CryoEnvDiscrete_v0(gym.Env):
                  thermal_link_heatbath=np.array([1.]),
                  temperature_heatbath=0.,
                  min_ph=0.2,
-                 g=np.array([0.001]),
+                 g=np.array([0.0001]),
                  T_hyst=np.array([0.001]),
                  control_pulse_amplitude=10,
                  env_fluctuations=1,
                  save_trajectory=False,
                  k: np.ndarray = None,
                  T0: np.ndarray = None,
+                 **kwargs,
                  ):
 
         # input handling
@@ -188,18 +189,31 @@ class CryoEnvDiscrete_v0(gym.Env):
                                        P_E=self.environment_model(V_set) + P_E_long)
         height_signal = self.sensor_model(T_inj, self.k, self.T0)
 
+        # resolution of baseline
+        T_res_0 = self.temperature_model(P_R=P_R,
+                                   P_E=P_E_long)
+        T_res_1 = self.temperature_model(P_R=P_R,
+                                         P_E=self.env_fluctuations + P_E_long)
+        height_bl_res_0 = self.sensor_model(T_res_0, self.k, self.T0)
+        height_bl_res_1 = self.sensor_model(T_res_1, self.k, self.T0)
+
         # difference is pulse height
         phs = np.maximum(height_signal - height_baseline, self.g)
+        bl_res = np.maximum(height_bl_res_1 - height_bl_res_0, self.g)
 
         # hysteresis case
         phs[T < self.T_hyst] = self.g
+        bl_res[T < self.T_hyst] = self.g
 
         # fix to discrete values
         phs = np.floor(phs/self.ph_step)*self.ph_step
         phs[phs < self.ph_iv[0]] = self.ph_iv[0]
         phs[phs > self.ph_iv[1]] = self.ph_iv[1]
+        bl_res = np.floor(bl_res / self.ph_step) * self.ph_step
+        bl_res[bl_res < self.ph_iv[0]] = self.ph_iv[0]
+        bl_res[bl_res > self.ph_iv[1]] = self.ph_iv[1]
 
-        return phs, T, T_inj
+        return phs, bl_res, T, T_inj
 
     def reward(self, new_state, action):
 
@@ -225,6 +239,7 @@ class CryoEnvDiscrete_v0(gym.Env):
                 reward += wait
             else:
                 reward -= wait
+            reward += p * wait
 
         return reward
 
@@ -241,7 +256,7 @@ class CryoEnvDiscrete_v0(gym.Env):
         future_V_sets[resets] = self.V_set_iv[1]
 
         # get the next phs
-        future_phs, future_T, future_T_inj = self.get_pulse_height(future_V_sets)
+        future_phs, bl_res, future_T, future_T_inj = self.get_pulse_height(future_V_sets)
 
         # pack new_state
         new_state = self.observation_to_discrete(V_set=future_V_sets, ph=future_phs)
@@ -272,7 +287,7 @@ class CryoEnvDiscrete_v0(gym.Env):
 
     def reset(self):
         future_V_sets = self.V_set_iv[1]*np.ones([self.nmbr_channels], dtype=float)
-        future_phs, _, _ = self.get_pulse_height(future_V_sets)
+        future_phs, _, _, _ = self.get_pulse_height(future_V_sets)
         self.state = self.observation_to_discrete(V_set=future_V_sets, ph=future_phs)
         self.reset_trajectories()
         return self.state
