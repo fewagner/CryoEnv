@@ -117,6 +117,9 @@ venv.bak/
 .spyderproject
 .spyproject
 
+# Jetbeans Pycharm project settings
+.idea
+
 # Rope project settings
 .ropeproject
 
@@ -141,3 +144,5 @@ cython_debug/
 /venv/
 /info/
 /data/
+tests/mqtt/**/models
+tests/mqtt/**/data

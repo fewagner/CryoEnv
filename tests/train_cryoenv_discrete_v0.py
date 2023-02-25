@@ -2,7 +2,6 @@ import gym
 import matplotlib.pyplot as plt
 import numpy as np
 import random
-import time
 from tqdm.auto import tqdm, trange
 from functools import partial
 import multiprocessing as mp
@@ -110,44 +109,30 @@ if __name__ == '__main__':
     # ------------------------------------------------
 
     # constants
-    V_SET_IV = (0, 99)
-    V_SET_STEP = 1
-    PH_IV = (0, 0.99)
-    PH_STEP = 0.01
-    WAIT_IV = (10, 50)
-    WAIT_STEP = 2
-    HEATER_RESISTANCE = np.array([100.])
-    THERMAL_LINK_CHANNELS = np.array([[1.]])
-    THERMAL_LINK_HEATBATH = np.array([1.])
-    TEMPERATURE_HEATBATH = 0.
-    MIN_PH = 0.35
-    G = np.array([0.001])
-    T_HYST = np.array([0.001])
-    CONTROL_PULSE_AMPLITUDE = 50
-    ENV_FLUCTUATIONS = 0.005
-    k = np.array([15])
-    T0 = np.array([0.5])
+    env_kwargs = {
+        'V_set_iv': (0, 99),
+        'V_set_step': 1,
+        'ph_iv': (0, 0.99),
+        'ph_step': 0.01,
+        'wait_iv': (10, 50),
+        'wait_step': 2,
+        'heater_resistance': np.array([100.]),
+        'thermal_link_channels': np.array([[1.]]),
+        'thermal_link_heatbath': np.array([1.]),
+        'temperature_heatbath': 0.,
+        'min_ph': 0.1,
+        'g': np.array([0.0001]),
+        'T_hyst': np.array([0.001]),
+        'control_pulse_amplitude': 50,
+        'env_fluctuations': 0.005,
+        'save_trajectory': True,
+        'k': np.array([15]),
+        'T0': np.array([0.5])
+    }
 
     print('Create Environment.')
-    env = gym.make('cryoenv:cryoenv-discrete-v0',
-                   V_set_iv=V_SET_IV,
-                   V_set_step=V_SET_STEP,
-                   ph_iv=PH_IV,
-                   ph_step=PH_STEP,
-                   wait_iv=WAIT_IV,
-                   wait_step=WAIT_STEP,
-                   heater_resistance=HEATER_RESISTANCE,
-                   thermal_link_channels=THERMAL_LINK_CHANNELS,
-                   thermal_link_heatbath=THERMAL_LINK_HEATBATH,
-                   temperature_heatbath=TEMPERATURE_HEATBATH,
-                   min_ph=MIN_PH,
-                   g=G,
-                   T_hyst=T_HYST,
-                   control_pulse_amplitude=CONTROL_PULSE_AMPLITUDE,
-                   env_fluctuations=ENV_FLUCTUATIONS,
-                   save_trajectory=True,
-                   k=k,
-                   T0=T0,
+    env = gym.make('cryoenv:cryoenv-continuous-v0',
+                   **env_kwargs,
                    )
 
     # print('Check Environment.')
@@ -160,15 +145,15 @@ if __name__ == '__main__':
     # DEFINE AGENT PARAMETERS
     # ------------------------------------------------
 
-    nmbr_agents = 3
+    nmbr_agents = 2
     processes = 4
     multiprocessing = False
-    train_episodes = 200
+    train_episodes = 400
     max_steps = 10000
     test_steps = 100
 
     alpha = 0.7  # learning rate
-    discount_factor = 0.618  # gamma
+    discount_factor = 0.65  # gamma
     if not isinstance(alpha, list):
         alpha = alpha * np.ones(nmbr_agents)
     if not isinstance(discount_factor, list):
@@ -178,10 +163,10 @@ if __name__ == '__main__':
     min_epsilon = 0.01
     decay = 1 / train_episodes
 
-    training = False
+    training = True
     testing = True
-    save_q_after_ep = [0, int((train_episodes - 1)/2), train_episodes - 1]
-    save_q_for_agent = [0,1,2]
+    save_q_after_ep = [200, train_episodes - 1]
+    save_q_for_agent = [0, 1]
 
     # Creating lists to keep track of reward and epsilon values
     training_rewards = np.empty((nmbr_agents, train_episodes), dtype=float)
@@ -327,8 +312,6 @@ if __name__ == '__main__':
         plt.close()
 
         labels = [r'$\gamma$ ' + str(g) + r', $\alpha$ ' + str(a) for g, a in zip(discount_factor, alpha)]
-        # men_means = [20, 34, 30, 35, 27]
-        # women_means = [25, 32, 34, 20, 25]
 
         x = np.arange(len(labels))  # the label locations
         width = 0.7 / len(save_q_after_ep)  # the width of the bars
@@ -336,16 +319,13 @@ if __name__ == '__main__':
         fig, ax = plt.subplots()
         rects = []
         for i, (ret, ep) in enumerate(zip(returns.T, save_q_after_ep)):
-            rects.append(ax.bar(x - 0.35 + i*width, ret, width, label='Episode {}'.format(ep)))
+            rects.append(ax.bar(x - 0.35 + i * width, ret, width, label='Episode {}'.format(ep)))
 
         # Add some text for labels, title and custom x-axis tick labels, etc.
         ax.set_ylabel('Return')
         ax.set_xticks(x)
         ax.set_xticklabels(labels)
         ax.legend()
-
-        # for r in rects:
-        #     ax.bar_label(r, padding=3)
 
         fig.tight_layout()
 
