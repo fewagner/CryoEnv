@@ -137,7 +137,7 @@ class DetectorModule:
         self.k = k
         self.Tc = Tc
         self.Ib = Ib
-        self.Ib_eff = np.copy(Ib)
+        # self.Ib_eff = np.copy(Ib)
         self.dac = dac
         self.U_sq_Rh = np.copy(dac)
         self.tau = tau
@@ -243,6 +243,8 @@ class DetectorModule:
         TODO
         """
         self.squid_out = self.xi * (self.Il - self.Il[0])  # remove offset
+        if np.any(self.squid_out > self.adc_range[1]) or np.any(self.squid_out < self.adc_range[0]):
+            print('ADC range exceeded!')
         self.squid_out[self.squid_out > self.adc_range[1]] = self.adc_range[1]
         self.squid_out[self.squid_out < self.adc_range[0]] = self.adc_range[0]
         self.squid_out_noise = np.copy(self.squid_out)
@@ -253,7 +255,7 @@ class DetectorModule:
         """
         self.timer += seconds
         self.update_capacitor(seconds)
-        self.update_bias(seconds)
+        # self.update_bias(seconds)
         if update_T:
             self.pileup_t0 = None
             self.pileup_er = 0
@@ -322,7 +324,7 @@ class DetectorModule:
         if time_passes:
             self.timer += self.t[-1]
             self.update_capacitor(self.t[-1])
-            self.update_bias(self.t[-1])
+            # self.update_bias(self.t[-1])
 
     def sweep_dac(self, start, end, heater_channel=0, norm=False):
         """
@@ -726,8 +728,8 @@ class DetectorModule:
     def update_capacitor(self, delta_t):
         self.U_sq_Rh = (self.U_sq_Rh - self.dac) * np.exp(- delta_t / self.tau) + self.dac
 
-    def update_bias(self, delta_t):
-        self.Ib_eff = (self.Ib_eff - self.Ib) * np.exp(- delta_t / self.tau) + self.Ib
+    # def update_bias(self, delta_t):
+    #     self.Ib_eff = (self.Ib_eff - self.Ib) * np.exp(- delta_t / self.tau) + self.Ib
 
     def P(self, t, T, It, no_pulses=False):
         """
@@ -840,12 +842,11 @@ class DetectorModule:
 
         w, nps = self.get_nps(Tt, It, tes_channel)  # nps in (muA)^2/Hz
 
-        noise = self.noise_function(self.record_length * nps, size=1)[0] * (1 + 0.01 * np.random.normal())  # in muA
+        noise = self.noise_function(nps, size=1)[0]  # in muA
 
         return self.xi[tes_channel] * noise  # in V
 
-    @staticmethod
-    def noise_function(nps, size):
+    def noise_function(self, nps, size):
         """
         A value trace in time space, that follows the given NPS.
 
@@ -862,7 +863,7 @@ class DetectorModule:
         phases = np.random.rand(size, nps.shape[0]) * 2 * np.pi  # create random phases
         phases = np.cos(phases) + 1j * np.sin(phases)
         f *= phases
-        return np.fft.irfft(f, axis=-1)
+        return np.fft.irfft(f, axis=-1, norm='ortho') * np.sqrt(self.sample_frequency / 2)
 
     def get_nps(self, Tt, It, tes_channel=0):
         """
