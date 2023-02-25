@@ -16,15 +16,15 @@ if use_sampler:
 else:
     det = cs.DetectorModule()
 
-det.set_control(dac=[-.75], Ib=[-.9], norm=True)
-det.wait(5)
-det.trigger(er=0., tpa=10, verb=True)
-det.plot_event()
-det.plot_nps(only_sum=False)
+det.set_control(dac=[-.5], Ib=[-.9], norm=True)
+for _ in range(2):
+    det.wait(10)
+    det.trigger(er=[0., 0.], tpa=[10], verb=True)
+    det.plot_temperatures()
+    det.plot_tes()
+    det.plot_nps(only_sum=False)
 
 
-# det.print_noise_parameters()
-#
-# rew = -det.rms * det.tpa / det.ph
-#
-# print('Reward: {}'.format(rew))
+det.print_noise_parameters()
+rew = np.sum(-det.rms * det.tpa / det.ph)
+print('Reward: {}'.format(rew))

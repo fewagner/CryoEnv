@@ -144,3 +144,5 @@ cython_debug/
 /venv/
 /info/
 /data/
+tests/mqtt/**/models
+tests/mqtt/**/data

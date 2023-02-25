@@ -7,7 +7,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from cryoenv.buffers import ReplayBuffer
 
@@ -19,23 +19,25 @@ class SAC:
     CRITICS = {"QNetwork": QNetwork}
 
     def __init__(
-        self,
-        env: gym.Env,
-        policy: str = "GaussianPolicy",
-        critic: str = "QNetwork",
-        lr=3e-4,
-        weight_decay=1e-5,
-        hidden_dims=[256, 256],
-        buffer=None,
-        buffer_init_steps=1000,
-        buffer_size=1_000_000,
-        batch_size=256,
-        tau=0.005,  # update factor
-        gamma=0.99,  # discount factor
-        temperature=0.2,  # initial entropy coefficient
-        target_update_interval=1,
-        device="cpu",
-        entropy_tuning=True,  # activate automatic entropy tuning
+            self,
+            env: gym.Env,
+            policy: str = "GaussianPolicy",
+            critic: str = "QNetwork",
+            lr=3e-4,
+            weight_decay=1e-5,
+            hidden_dims=[256, 256],
+            buffer=None,
+            buffer_init_steps=1000,
+            buffer_size=1_000_000,
+            batch_size=256,
+            tau=0.005,  # update factor
+            gamma=0.99,  # discount factor
+            temperature=0.2,  # initial entropy coefficient
+            target_update_interval=1,
+            device="cpu",
+            entropy_tuning=True,  # activate automatic entropy tuning
+            gradient_steps=1,
+            learning_starts=1,
     ):
         self.device = device
         self.batch_size = batch_size
@@ -44,6 +46,8 @@ class SAC:
         self.alpha = torch.FloatTensor([temperature]).to(self.device)
         self.target_update_interval = target_update_interval
         self.entropy_tuning = entropy_tuning
+        self.gradient_steps = gradient_steps
+        self.learning_starts = learning_starts
 
         self.env = env
 
@@ -89,34 +93,52 @@ class SAC:
         )
         self.total_num_steps = 0
 
-    def learn(self, episodes: int = 1, episode_steps: int = 100, writer=None):
+    def learn(self, episodes: int = 1, episode_steps: int = 100, writer=None, two_pbars=True):
+        """
+        TODO
+
+        Resets environment before every episode.
+
+        :param episodes:
+        :type episodes:
+        :param episode_steps:
+        :type episode_steps:
+        :param writer:
+        :type writer:
+        :param two_pbars:
+        :type two_pbars:
+        :return:
+        :rtype:
+        """
         self.policy.train()
         self.critic.train()
         self.target_critic.train()
         self._fill_buffer()
-        pbar = tqdm(range(episodes), leave=False)
+        pbar = tqdm(range(episodes), leave=True)
         for episode in pbar:
-            state = self.env.reset(is_training=True)
-            score = 0
-            for i in tqdm(range(episode_steps), leave=False):
+            state, info = self.env.reset()  # is_training=True
+            trajectory_idx = 0
+            return_ = 0
+            iterator = range(episode_steps)
+            if two_pbars:
+                iterator = tqdm(iterator, leave=False)
+            for i in iterator:
                 action = self._choose_action(state).cpu().detach().numpy()[0]
-                next_state, reward, done, info = self.env.step(action)
-                score += reward
-                self.buffer.store_transition(state, action, reward, next_state, done)
-                self._learn_step(episode, gradient_step=i, writer=writer)
-                state = next_state
+                next_state, reward, terminated, truncated, info = self.env.step(action)
+                return_ += reward
+                self.buffer.store_transition(state, action, reward, next_state, terminated, trajectory_idx)
+                trajectory_idx += 1
+                if self.buffer.buffer_total > self.learning_starts:
+                    for j in range(self.gradient_steps):
+                        update_target_value = True if self.buffer.buffer_total % self.target_update_interval == 0 else False
+                        self._learn_step(update_target_value=update_target_value, writer=writer)
+                # state = next_state
                 self.total_num_steps += 1
-                pbar.set_description(f"episode: {episode}, score: {score:.4f}")
-
-            if episode % 10 == 0:
-                obs = self.env.reset()
-                for i in range(100):
-                    _action = self.predict(obs)
-                    obs, _, _, _ = self.env.step(_action.detach().cpu().numpy()[0])
-                _rewards, _, _, _, _, _, _, _ = self.env.get_trajectory()
-                self.policy.train()
-                if writer is not None:
-                    writer.add_scalar("validation/reward", np.mean(_rewards), episode)
+                pbar.set_description(f"total steps: {self.total_num_steps}, episode: {episode}, avg_return: {return_/(i+1):.4f}")
+                if terminated or truncated:
+                    if two_pbars:
+                        iterator.disp(close=True)
+                    break
 
     def predict(self, state):
         self.policy.eval()
@@ -131,33 +153,41 @@ class SAC:
         return torch.tanh(action)
 
     def _fill_buffer(self):
-        state = self.env.reset()
+        """
+        Resets environment, in case buffer is smaller than batch size fill with (uniformly) random trajectory.
+        """
+        state, info = self.env.reset()
         while len(self.buffer) < self.batch_size:
             action = self.env.action_space.sample()
-            next_state, reward, done, info = self.env.step(action)
-            self.buffer.store_transition(state, action, reward, next_state, done)
-            state = next_state
+            next_state, reward, terminated, truncated, info = self.env.step(action)
+            self.buffer.store_transition(state, action, reward, next_state, terminated)
+            # state = next_state
 
-    def _learn_step(self, episode, gradient_step, writer=None):
-        state, action, reward, next_state, _ = self.buffer.sample_buffer(
+    def _learn_step(self, update_target_value, writer=None):
+        # get from buffer
+        # TODO in lstm case consider trajectories
+        state, action, reward, next_state, terminal = self.buffer.sample_buffer(
             self.batch_size
         )
         state = torch.tensor(state, dtype=torch.float).to(self.device)
         action = torch.tensor(action, dtype=torch.float).to(self.device)
         reward = torch.tensor(reward, dtype=torch.float).to(self.device).view(-1, 1)
         next_state = torch.tensor(next_state, dtype=torch.float).to(self.device)
+        terminal = torch.tensor(terminal, dtype=torch.bool).to(self.device)
 
+        # calc next q values for TD update
         with torch.no_grad():
             next_actions, next_log_probs = self.policy.sample(next_state)
             next_critic1_target, next_critic2_target = self.target_critic(
                 next_state, next_actions
             )
             next_min_critic_target = (
-                torch.min(next_critic1_target, next_critic2_target)
-                - self.alpha * next_log_probs
+                    torch.min(next_critic1_target, next_critic2_target)
+                    - self.alpha * next_log_probs
             )
-            next_q_value = reward + self.gamma * next_min_critic_target
+            next_q_value = reward + torch.logical_not(terminal) * self.gamma * next_min_critic_target
 
+        # train critic/values with mse loss
         critic_1, critic_2 = self.critic(state, action)
         critic_1_loss = F.mse_loss(critic_1, next_q_value)
         critic_2_loss = F.mse_loss(critic_2, next_q_value)
@@ -167,6 +197,7 @@ class SAC:
         torch.nn.utils.clip_grad_value_(self.critic.parameters(), 0.5)
         self.critic_optim.step()
 
+        # train actor/policy with TD error
         actions, log_probs = self.policy.sample(state)
         next_critic_1, next_critic_2 = self.critic(state, actions)
         next_min_q = torch.min(next_critic_1, next_critic_2)
@@ -178,14 +209,14 @@ class SAC:
 
         if self.entropy_tuning:
             alpha_loss = -(
-                self.log_alpha * (log_probs + self.target_entropy).detach()
+                    self.log_alpha * (log_probs + self.target_entropy).detach()
             ).mean()
             self.alpha_optim.zero_grad()
             alpha_loss.backward(retain_graph=True)
             self.alpha_optim.step()
             self.alpha = self.log_alpha.exp()
 
-        if gradient_step % self.target_update_interval == 0:
+        if update_target_value:
             self._update_target_value()
 
         if writer is not None:
@@ -207,6 +238,7 @@ class SAC:
                 )
 
     def _choose_action(self, state):
+        # TODO in lstm case consider trajectories
         state_tensor = torch.tensor(np.array([state])).float().to(self.device)
         action, _ = self.policy.sample(state_tensor)
         return action
@@ -216,7 +248,7 @@ class SAC:
             tau = self.tau
 
         for target_critic_param, critic_param in zip(
-            self.target_critic.parameters(), self.critic.parameters()
+                self.target_critic.parameters(), self.critic.parameters()
         ):
             target_critic_param.data.copy_(
                 target_critic_param.data * (1.0 - tau) + critic_param.data * tau
@@ -233,12 +265,12 @@ class SAC:
 
     @classmethod
     def load(
-        cls,
-        env,
-        path,
-        policy: str = "GaussianPolicy",
-        critic: str = "QNetwork",
-        device="cpu",
+            cls,
+            env,
+            path,
+            policy: str = "GaussianPolicy",
+            critic: str = "QNetwork",
+            device="cpu",
     ):
         """
         Loads only the policy weights for inference.
@@ -248,3 +280,11 @@ class SAC:
             torch.load(os.path.join(path, "policy.pt"), map_location=device)
         )
         return sac
+
+    def train(self):
+        self.policy.train()
+        self.critic.train()
+
+    def eval(self):
+        self.policy.eval()
+        self.critic.eval()

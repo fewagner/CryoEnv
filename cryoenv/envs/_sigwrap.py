@@ -15,9 +15,10 @@ class CryoEnvSigWrapper(gym.Env):
     TODO
     """
 
-    metadata = {'render.modes': ['human']}
+    metadata = {'render_modes': ['human', 'mpl']}
 
-    def __init__(self, pars=None, omega=1e-2, sample_pars=False,
+    def __init__(self, pars=None, omega=1e-2, sample_pars=False, render_mode=None,
+                 rand_start = False, wait = 90, log_reward = False,
                  ):
         if pars is not None:
             self.pars = pars
@@ -31,13 +32,19 @@ class CryoEnvSigWrapper(gym.Env):
         self.ntes = self.detector.nmbr_tes
         self.nheater = self.detector.nmbr_heater
         self.omega = omega
+        self.rand_start = rand_start
+        self.wait = wait
+        self.log_reward = log_reward
+
+        assert render_mode is None or render_mode in self.metadata["render_modes"]
+        self.render_mode = render_mode
 
         self.action_space = spaces.Box(low=- np.ones(self.nmbr_actions),
                                        high=np.ones(self.nmbr_actions),
                                        dtype=np.float32)  # DACs, IBs
         self.observation_space = spaces.Box(low=- np.ones(self.nmbr_observations),
                                             high=np.ones(self.nmbr_observations),
-                                            dtype=np.float32)  # PHs, RMSs, IBs, DACs, TPAs
+                                            dtype=np.float32)  # PHs, RMSs, IBs, DACs  # , TPAs
 
         _ = self.reset()
 
@@ -47,11 +54,11 @@ class CryoEnvSigWrapper(gym.Env):
 
         info = {}
 
-        self.detector.set_control(dac=action[:self.nheater],
+        self.detector.set_control(dac=action[:self.nheater],  # TODO test, is good?
                                   Ib=action[self.nheater:self.nheater + self.ntes],
                                   norm=True)
         self.detector.wait(seconds=self.detector.tp_interval - self.detector.t[-1])
-        self.detector.trigger(er=0.,
+        self.detector.trigger(er=np.zeros(self.detector.nmbr_components),  # TODO test, is good?
                               tpa=self.detector.tpa_queue[self.detector.tpa_idx],
                               verb=False)
         self.detector.tpa_idx += 1
@@ -65,32 +72,74 @@ class CryoEnvSigWrapper(gym.Env):
         new_state[3 * self.ntes:3 * self.ntes + self.nheater] = self.detector.get('dac', norm=True)
         # new_state[3 * self.ntes + self.nheater:3 * self.ntes + 2 * self.nheater] = self.detector.get('tpa', norm=True)
 
-        reward = - np.sum(self.detector.rms * self.detector.tpa / self.detector.ph) - \
-                 self.omega * np.sum((new_state[self.ntes:] - self.state[self.ntes:]) ** 2)
+        if not self.log_reward:
+            reward = - np.sum(self.detector.rms * self.detector.tpa / np.maximum(self.detector.ph, self.detector.rms / 5))
+        else:
+            reward = - np.log(np.sum(self.detector.rms * self.detector.tpa / np.maximum(self.detector.ph, self.detector.rms / 5)))
+        reward -= self.omega * np.sum((new_state[self.ntes:] - self.state[self.ntes:]) ** 2)
 
         self.state = new_state
 
-        done = False
+        terminated = False
+        truncated = False
 
-        return new_state, reward, done, info
+        return new_state, reward, terminated, truncated, info
 
     def reset(self):
-        self.detector.clear_buffer()
-        self.detector.set_control(dac=-np.ones(self.detector.nmbr_heater),
-                                  Ib=-np.ones(self.detector.nmbr_tes),
-                                  norm=True)
-        self.state = - np.ones(self.nmbr_observations)
-        return self.state
 
-    def render(self, mode='human', save_path=None):
-        assert mode in ["human", "mpl"], "Invalid mode, must be either \"human\" or \"mpl\""
-        if mode == "human":
-            self.detector.plot_event(show=True)
+        info = {}
 
-        elif mode == "mpl":
-            self.detector.plot_event(show=False)
+        if not self.rand_start:
+            self.detector.clear_buffer()
+            self.detector.set_control(dac=-np.ones(self.detector.nmbr_heater),
+                                      Ib=-np.ones(self.detector.nmbr_tes),
+                                      norm=True)
+            self.state = - np.ones(self.nmbr_observations)
+
+        else:
+            info = {}
+
+            self.detector.clear_buffer()
+            action = self.action_space.sample()
+            action[:self.nheater] = np.random.choice([-1, 1], size=self.nheater)
+            self.detector.tpa_idx = np.random.choice(len(self.detector.tpa_queue))
+
+            self.detector.set_control(dac=action[:self.nheater],
+                                      Ib=action[self.nheater:self.nheater + self.ntes],
+                                      norm=True)
+            self.detector.wait(seconds=self.wait)
+            self.detector.trigger(er=np.zeros(self.detector.nmbr_components),
+                                  tpa=self.detector.tpa_queue[self.detector.tpa_idx],
+                                  verb=False)
+            self.detector.tpa_idx += 1
+            if self.detector.tpa_idx + 1 > len(self.detector.tpa_queue):
+                self.detector.tpa_idx = 0
+
+            new_state = np.ones(self.nmbr_observations)
+            new_state[:self.ntes] = self.detector.get('ph', norm=True)
+            new_state[self.ntes:2 * self.ntes] = self.detector.get('rms', norm=True)
+            new_state[2 * self.ntes:3 * self.ntes] = self.detector.get('Ib', norm=True)
+            new_state[3 * self.ntes:3 * self.ntes + self.nheater] = self.detector.get('dac', norm=True)
+
+            self.state = new_state
+
+        return self.state, info
+
+    def render(self, save_path=None):
+        if self.render_mode == "human":
+            # self.detector.plot_event(show=True)
+            self.detector.plot_temperatures(show=True)
+            self.detector.plot_tes(show=True)
+
+        elif self.render_mode == "mpl":
+            # self.detector.plot_event(show=False)
+            self.detector.plot_temperatures(show=False)
             if save_path is not None:
-                plt.savefig(save_path)
+                plt.savefig(save_path + '_temps')
+            plt.close()
+            self.detector.plot_tes(show=False)
+            if save_path is not None:
+                plt.savefig(save_path + '_tes')
             plt.close()
 
     def close(self):
