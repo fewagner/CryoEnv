@@ -51,6 +51,7 @@ class DetectorModule:
                  xi=np.array([1.]),  # squid conversion current to voltage, V / muA
                  i_sq=np.array([2 * 1e-12]),  # squid noise, A / sqrt(Hz)
                  tes_fluct=np.array([2e-4]),  # ??
+                 alpha=np.array([1.]),  # negative power of flicker noise 
                  emi=np.array([2e-10]),  # ??
                  lowpass=1e4,  # Hz
                  Tb=None,  # function that takes one positional argument t, returns Tb
@@ -96,6 +97,7 @@ class DetectorModule:
         assert len(Ib_ramping_speed) == self.nmbr_tes, ''
         assert len(i_sq) == self.nmbr_tes, ''
         assert len(tes_fluct) == self.nmbr_tes, ''
+        assert len(alpha) == self.nmbr_tes, ''
         assert len(emi) == self.nmbr_tes, ''
         assert len(Rt0) == self.nmbr_tes, ''
         assert len(k) == self.nmbr_tes, ''
@@ -158,6 +160,7 @@ class DetectorModule:
         self.xi = xi
         self.i_sq = i_sq
         self.tes_fluct = tes_fluct
+        self.alpha = alpha
         self.emi = emi
         self.lowpass = lowpass
         if Tb is not None:
@@ -626,6 +629,7 @@ class DetectorModule:
         print('Temperature shunt: {} mK'.format(self.Tb(0)))
         print('i sq: {} pA/sqrt(Hz)'.format(1e12 * self.i_sq[channel]))
         print('1 / f amplitude: {} '.format(self.tes_fluct[channel] ** 2))
+        print('1 / f power (alpha): {} '.format(self.alpha[channel]))
 
     def plot_buffer(self, tes_channel=0, tpa=None, save_path=None):
         """
@@ -863,7 +867,7 @@ class DetectorModule:
         phases = np.random.rand(size, nps.shape[0]) * 2 * np.pi  # create random phases
         phases = np.cos(phases) + 1j * np.sin(phases)
         f *= phases
-        return np.fft.irfft(f, axis=-1, norm='ortho') * np.sqrt(self.sample_frequency / 2)
+        return np.fft.irfft(f, axis=-1, norm='forward') / 2 
 
     def get_nps(self, Tt, It, tes_channel=0):
         """
@@ -935,7 +939,7 @@ class DetectorModule:
         S_squared /= (self.Gb[t_ch] + self.G_etf(Tt, It, tes_channel)) ** 2
         S_squared *= (It / (self.Rt[tes_channel](Tt) + self.Rs[tes_channel])) ** 2
         S_squared *= self.dRtdT(Tt, tes_channel) ** 2
-        return S_squared * P_th_squared * 1e6
+        return S_squared * P_th_squared * 1e3
 
     def thermometer_johnson(self, w, Tt, It, tes_channel=0):
         """
@@ -946,7 +950,7 @@ class DetectorModule:
         I_jt /= (1 + w ** 2 * self.tau_eff(Tt, It, tes_channel) ** 2)
         I_jt *= 4 * k * Tt * self.Rt[tes_channel](Tt) / (self.Rt[tes_channel](Tt) + self.Rs[tes_channel]) ** 2
         I_jt *= (self.tau_eff(Tt, It, tes_channel) / self.tau_in(tes_channel)) ** 2
-        return I_jt * 1e9
+        return I_jt * 1e3
 
     def shunt_johnson(self, w, Tt, It, tes_channel=0):
         """
@@ -959,7 +963,7 @@ class DetectorModule:
         I_js *= 4 * k * self.Tb(self.timer) * self.Rs[tes_channel] / (
                     self.Rt[tes_channel](Tt) + self.Rs[tes_channel]) ** 2
         I_js *= (self.tau_eff(Tt, It, tes_channel) / self.tau_in(tes_channel)) ** 2
-        return I_js * 1e9
+        return I_js * 1e3
 
     def squid_noise(self, w, Tt, It, tes_channel=0):
         """
@@ -968,7 +972,7 @@ class DetectorModule:
         """
         I_sq = w / w
         I_sq *= self.i_sq[tes_channel] ** 2
-        return I_sq * 1e12
+        return I_sq * 1e-12
 
     def one_f_noise(self, w, Tt, It, tes_channel=0):
         """
@@ -978,9 +982,9 @@ class DetectorModule:
         I_one_f = (1 + w ** 2 * self.tau_in(tes_channel) ** 2)
         I_one_f /= (1 + w ** 2 * self.tau_eff(Tt, It, tes_channel) ** 2)
         I_one_f *= (self.tau_eff(Tt, It, tes_channel) / self.tau_in(tes_channel)) ** 2
-        I_one_f *= It ** 2 * self.Rt[tes_channel](Tt) ** 2 * self.tes_fluct[tes_channel] ** 2 / w / (
+        I_one_f *= It ** 2 * self.Rt[tes_channel](Tt) ** 2 * self.tes_fluct[tes_channel] ** 2 / w ** self.alpha[tes_channel] / (
                     self.Rt[tes_channel](Tt) + self.Rs[tes_channel]) ** 2
-        return I_one_f
+        return I_one_f * 1e12
 
     def emi_noise(self, w, Tt, It, tes_channel=0):
         """
@@ -994,7 +998,7 @@ class DetectorModule:
         I_em /= (self.Rt[tes_channel](Tt) + self.Rs[tes_channel]) ** 2
         I_em *= (self.tau_eff(Tt, It, tes_channel) / self.tau_in(tes_channel)) ** 2
         I_em *= (self.emi[tes_channel]) ** 2 * self.power_freq[-w.shape[0]:]
-        return I_em
+        return I_em * 1e3
 
     # utils
 
