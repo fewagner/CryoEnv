@@ -1,5 +1,5 @@
 
-import gym
+import gymnasium as gym
 
 class ValueFunction:
 

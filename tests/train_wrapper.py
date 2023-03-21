@@ -1,4 +1,4 @@
-import gym
+import gymnasium as gym
 import warnings
 import numpy as np
 from cryoenv.envs._utils_stablebaselines import ProgressBarManager

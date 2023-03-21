@@ -1,14 +1,10 @@
 import numpy as np
-from scipy.integrate import odeint, solve_ivp
+from scipy.integrate import odeint
 from scipy.constants import e, k
 from scipy.signal import butter, freqs
-import numba as nb
 import matplotlib.pyplot as plt
 import time
-from scipy.optimize import fsolve
 from tqdm.auto import tqdm, trange
-import pdb
-from numbalsoda import lsoda_sig, lsoda
 import pandas as pd
 from ._transition_curves import Rt_smooth, Rt_kinky
 

@@ -1,9 +1,9 @@
 # imports
-import gym
+import gymnasium as gym
 import numpy as np
 from itertools import product
 
-gym.logger.set_level(40)
+# gym.logger.set_level(40)
 
 print('Create Environment.')
 env = gym.make('cryoenv:cryoenv-v0', action_low=np.array([[0., 1., 0.]]))
