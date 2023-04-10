@@ -16,4 +16,6 @@ __all__ = [
     "publish",
     "subscribe",
     "check",
+    "augment_pars",
+    "double_tes",
 ]

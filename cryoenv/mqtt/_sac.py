@@ -1,4 +1,3 @@
-
 import os
 import time
 from copy import deepcopy
@@ -20,11 +19,12 @@ import torch.nn as nn
 class CryoWorldModel(nn.Module):
     # tuned to 7 obs: (ph, rms, ib, dac, tpa, ib_m, dac_m), 2 act: (dac, ib)
     # TODO adapt to no memory states and TPA
-    
-    def __init__(self, memory_factor=0.8, curiosity_factor=0.1, hidden_dims=[256, 256], lr=3e-4, weight_decay=1e-5, device="cpu"):
+
+    def __init__(self, memory_factor=0.8, curiosity_factor=0.1, hidden_dims=[256, 256], lr=3e-4, weight_decay=1e-5,
+                 device="cpu"):
         super(CryoWorldModel, self).__init__()
         self.device = device
-        
+
         response_network = []
         input_channels = 5  # dac, ib, tpa, dac_m, ib_m
         for n_channels in hidden_dims:
@@ -35,7 +35,7 @@ class CryoWorldModel(nn.Module):
 
         response_network.append(nn.Linear(input_channels, 2))  # ph_, rms_
         self.response_network = nn.Sequential(*response_network)
-        
+
         curiosity_network = []
         input_channels = 4  # dac, ib, dac_m, ib_m
         for n_channels in hidden_dims:
@@ -48,66 +48,67 @@ class CryoWorldModel(nn.Module):
         self.curiosity_network = nn.Sequential(*curiosity_network)
 
         self.to(self.device)
-        
+
         self.response_optim = optim.Adam(self.response_network.parameters(), lr=lr, weight_decay=weight_decay)
         self.curiosity_optim = optim.Adam(self.curiosity_network.parameters(), lr=lr, weight_decay=weight_decay)
         self.memory_factor = memory_factor
         self.curiosity_factor = curiosity_factor
-    
+
     def train_batch(self, state, action, next_state, reward):
-        
+
         # train response net
-        x = next_state[:,2:]  # ib_, dac_, tpa_, ib_m_, dac_m_
+        x = next_state[:, 2:]  # ib_, dac_, tpa_, ib_m_, dac_m_
         pred = self.response_network(x)
-        
-        y = next_state[:,:2] # ph_, rms_
+
+        y = next_state[:, :2]  # ph_, rms_
         response_loss = F.mse_loss(pred, y)
         self.response_optim.zero_grad()
         response_loss.backward(retain_graph=True)
         self.response_optim.step()
-        
+
         # train curiosity net
-        x = next_state[:,[2,3,5,6]]  # ib_, dac_, ib_m_, dac_m_
+        x = next_state[:, [2, 3, 5, 6]]  # ib_, dac_, ib_m_, dac_m_
         pred = torch.sigmoid(self.curiosity_network(x))
         y = torch.zeros((len(x)))
-        
+
         x_ = torch.rand(x.shape)  # ib_, dac_, ib_m_, dac_m_
         pred_ = torch.sigmoid(self.curiosity_network(x))
         y_ = torch.ones((len(x)))
-                        
+
         curiosity_loss = F.mse_loss(torch.cat((pred, pred_), 0), torch.cat((y, y_), 0))
         self.curiosity_optim.zero_grad()
         curiosity_loss.backward(retain_graph=True)
         self.curiosity_optim.step()
-        
+
         return response_loss.item(), curiosity_loss.item()
-    
+
     def get_next_state(self, state, action):
-        #predicts next state
+        # predicts next state
         # ph, rms, ib, dac, tpa, ib_m, dac_m = np.array(state).T
-        
+
         next_state = np.zeros(state.shape, dtype=float)
         next_state[:, 2:4] = action  # dac, ib
-        next_state[:,6] = state[:,6] * self.memory_factor - (1 - self.memory_factor) * action[:,0]  # dac_m
-        next_state[:,5] = next_state[:,5] * self.memory_factor - (1 - self.memory_factor) * action[:,1]  # ib_m
-        next_state[:,4] = np.random.uniform(-1,1, size=len(state))  # tpa
-        x = torch.from_numpy(state[:,2:]).float().to(self.device)
+        next_state[:, 6] = state[:, 6] * self.memory_factor - (1 - self.memory_factor) * action[:, 0]  # dac_m
+        next_state[:, 5] = next_state[:, 5] * self.memory_factor - (1 - self.memory_factor) * action[:, 1]  # ib_m
+        next_state[:, 4] = np.random.uniform(-1, 1, size=len(state))  # tpa
+        x = torch.from_numpy(state[:, 2:]).float().to(self.device)
         pred = self.response_network(x).detach().cpu().numpy()
         next_state[:, :2] = pred  # ph, rms
-        
+
         terminal = np.zeros(len(state), dtype=bool)
         return next_state, terminal
-    
+
     def get_reward(self, state, action, next_state):
-        #predicts next reward
+        # predicts next reward
         ph = next_state[:, 0]
         rms = next_state[:, 1]
         tpa = next_state[:, 4]
-        x = torch.from_numpy(state[:,[2,3,5,6]]).float().to(self.device)  # ib_, dac_, ib_m_, dac_m_
+        x = torch.from_numpy(state[:, [2, 3, 5, 6]]).float().to(self.device)  # ib_, dac_, ib_m_, dac_m_
         pred = self.curiosity_network(x).detach().cpu().numpy().flatten()
-        reward = - rms * tpa / ph 
+        reward = - rms * tpa / ph
         reward += 1 / (1 + np.exp(pred)) * self.curiosity_factor
         return reward
+
 
 class QNetwork(nn.Module):
 
@@ -145,16 +146,16 @@ class QNetwork(nn.Module):
 
         return x1, x2
 
-    
+
 class GaussianPolicy(nn.Module):
 
     def __init__(
-        self,
-        n_observations,
-        n_actions,
-        hidden_dims=[256, 256],
-        device="cpu",
-        noise=1e-6,
+            self,
+            n_observations,
+            n_actions,
+            hidden_dims=[256, 256],
+            device="cpu",
+            noise=1e-6,
     ):
         super(GaussianPolicy, self).__init__()
         self.device = device
@@ -278,7 +279,7 @@ class SoftActorCritic(Agent):
         )
         self.total_num_steps = 0
         self.total_gradient_steps = 0
-        
+
         self.world_model = world_model
         self.model_steps = model_steps
 
@@ -289,10 +290,10 @@ class SoftActorCritic(Agent):
         self._fill_buffer()
         pbar = tqdm(range(episodes), leave=True)
         for episode in pbar:
-            
+
             if tracker is not None:
                 tracker.new_episode()
-            
+
             state, info = self.env.reset()  # is_training=True
             return_ = 0
             iterator = range(episode_steps)
@@ -311,7 +312,7 @@ class SoftActorCritic(Agent):
                         self._learn_step(update_target_value=update_target_value, writer=writer)
                 state = next_state
                 self.total_num_steps += 1
-                
+
                 if terminated or truncated:
                     if two_pbars:
                         iterator.disp(close=True)
@@ -320,17 +321,17 @@ class SoftActorCritic(Agent):
 
     def predict(self, state, greedy=True):
         self.policy.eval()
-        
+
         state = torch.tensor(state).float().to(self.device)
-            
+
         if len(state.shape) != 2:
             state = state.unsqueeze(0)
 
         action, log_probs = self.policy.sample(state, greedy=greedy)
-        
+
         action = action.detach().cpu().numpy()
         log_probs = log_probs.detach().cpu().numpy()
-            
+
         return action, log_probs
 
     def _fill_buffer(self):
@@ -340,13 +341,13 @@ class SoftActorCritic(Agent):
             next_state, reward, terminated, truncated, info = self.env.step(action)
             self.buffer.store_transition(state, action, reward, next_state, terminated)
             state = next_state
-            
+
     def _learn_model_step(self):
-        state = np.random.uniform(-1,1,size=(self.batch_size, self.env.observation_space.shape[0]))
-        action = np.random.uniform(-1,1,size=(self.batch_size, self.env.action_space.shape[0]))
+        state = np.random.uniform(-1, 1, size=(self.batch_size, self.env.observation_space.shape[0]))
+        action = np.random.uniform(-1, 1, size=(self.batch_size, self.env.action_space.shape[0]))
         next_state, terminal = self.world_model.get_next_state(state, action)
         reward = self.world_model.get_reward(state, action, next_state)
-        
+
         state = torch.tensor(state, dtype=torch.float).to(self.device)
         action = torch.tensor(action, dtype=torch.float).to(self.device)
         reward = torch.tensor(reward, dtype=torch.float).to(self.device).view(-1, 1)
@@ -424,9 +425,9 @@ class SoftActorCritic(Agent):
 
         if update_target_value:
             self._update_target_value()
-            
+
         self.total_gradient_steps += 1
-        
+
         if writer is not None:
             writer.add_scalar("loss/policy", policy_loss.item(), self.total_gradient_steps)
             writer.add_scalar(
@@ -444,12 +445,12 @@ class SoftActorCritic(Agent):
                     self.alpha.clone().detach().cpu().numpy(),
                     self.total_gradient_steps,
                 )
-            
+
         if self.world_model is not None:
-            
+
             for j in range(self.model_steps):
                 model_loss, curiosity_loss = self.world_model.train_batch(state, action, next_state, reward)
-                
+
                 if writer is not None:
                     writer.add_scalar(
                         "loss/response", model_loss, self.total_gradient_steps
@@ -457,11 +458,9 @@ class SoftActorCritic(Agent):
                     writer.add_scalar(
                         "loss/curiosity", curiosity_loss, self.total_gradient_steps
                     )
-            
+
             for j in range(self.model_steps):
                 self._learn_model_step()
-
-            
 
     def _choose_action(self, state):
         state_tensor = torch.tensor(np.array([state])).float().to(self.device)
@@ -496,7 +495,7 @@ class SoftActorCritic(Agent):
             policy: str = "GaussianPolicy",
             critic: str = "QNetwork",
             device="cpu",
-            load_critic = False,
+            load_critic=False,
             **kwargs,
     ):
         """

@@ -163,3 +163,4 @@ tests/mqtt/new_data
 /tests/mqtt/firstv1_2/
 /tests/mqtt/from_GS/
 /tests/mqtt/new_data/
+/tests/buffers/
