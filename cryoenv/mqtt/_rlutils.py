@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from tqdm.auto import tqdm
 import os
 from copy import deepcopy
+import pdb
 
 
 class ReturnTracker():
@@ -260,7 +261,7 @@ def augment_pars(pars, scale=0.1, **kwargs):
                 (1 / new_pars['eps'][:, 0] - 1) * (1 + scale * np.random.normal(size=nmbr_components)) / (
                 1 + scale * np.random.normal(size=nmbr_components)) + 1)
         new_pars['eps'][:, 1] = 1 - new_pars['eps'][:, 0]
-    if nmbr_components == 3:
+    elif nmbr_components == 3:
         if nmbr_tes == 2:
             new_eps = np.zeros((3,3))
             for i in range(2):
