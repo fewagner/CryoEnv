@@ -20,16 +20,16 @@ class CryoEnvSigWrapper(gym.Env):
 
     metadata = {'render_modes': ['human', 'mpl', 'plotly']}
 
-    def __init__(self, pars=None, omega=1e-2, sample_pars=False, render_mode=None,
+    def __init__(self, pars=None, omega=1e-2, render_mode=None,  # sample_pars=False,
                  rand_start=False, relax_time=90, log_reward=False, tpa_in_state=True,
-                 div_adc_by_bias=True,
+                 div_adc_by_bias=True, rand_tpa=True,
                  ):
         if pars is not None:
             self.pars = pars
         else:
             self.pars = {}
-        if sample_pars:
-            self.pars = sample_parameters(**self.pars)
+        # if sample_pars:
+        #     self.pars = sample_parameters(**self.pars)
         self.detector = DetectorModel(**self.pars, verb=False)
         self.nmbr_actions = self.detector.nmbr_heater + self.detector.nmbr_tes
         if tpa_in_state:
@@ -49,6 +49,7 @@ class CryoEnvSigWrapper(gym.Env):
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
+        self.rand_tpa = rand_tpa
 
         self.action_space = spaces.Box(low=- np.ones(self.nmbr_actions),
                                        high=np.ones(self.nmbr_actions),
@@ -71,9 +72,12 @@ class CryoEnvSigWrapper(gym.Env):
         self.detector.wait(seconds=self.detector.tp_interval - self.detector.t[-1])
         self.detector.trigger(er=np.zeros(self.detector.nmbr_components),
                               tpa=self.detector.tpa_queue[self.detector.tpa_idx])
-        self.detector.tpa_idx += 1
-        if self.detector.tpa_idx + 1 > len(self.detector.tpa_queue):
-            self.detector.tpa_idx = 0
+        if not self.rand_tpa:
+            self.detector.tpa_idx += 1
+            if self.detector.tpa_idx + 1 > len(self.detector.tpa_queue):
+                self.detector.tpa_idx = 0
+        else:
+            self.detector.tpa_idx = np.random.choice(len(self.detector.tpa_queue))
 
         new_state = np.ones(self.nmbr_observations)
         new_state[:self.ntes] = self.detector.get('ph', norm=True, div_adc_by_bias=self.div_adc_by_bias)
@@ -146,9 +150,12 @@ class CryoEnvSigWrapper(gym.Env):
             self.detector.wait(seconds=2 * self.relax_time)
             self.detector.trigger(er=np.zeros(self.detector.nmbr_components),
                                   tpa=self.detector.tpa_queue[self.detector.tpa_idx])
-            self.detector.tpa_idx += 1
-            if self.detector.tpa_idx + 1 > len(self.detector.tpa_queue):
-                self.detector.tpa_idx = 0
+            if not self.rand_tpa:
+                self.detector.tpa_idx += 1
+                if self.detector.tpa_idx + 1 > len(self.detector.tpa_queue):
+                    self.detector.tpa_idx = 0
+            else:
+                self.detector.tpa_idx = np.random.choice(len(self.detector.tpa_queue))
 
             new_state = np.ones(self.nmbr_observations)
             new_state[:self.ntes] = self.detector.get('ph', norm=True, div_adc_by_bias=self.div_adc_by_bias)
