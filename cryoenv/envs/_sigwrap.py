@@ -102,7 +102,7 @@ class CryoEnvSigWrapper(gym.Env):
         if not self.log_reward:
             # exclude the TPA from the reward for importance sampling of small TPAs!
             reward = - np.sum(
-                self.detector.rms / self.detector.ph)  # * self.detector.tpa, np.maximum(self.detector.ph, self.detector.rms)
+                self.detector.rms / np.maximum(self.detector.ph, self.detector.rms))  # * self.detector.tpa, np.maximum(self.detector.ph, self.detector.rms)
         else:
             reward = - np.log(
                 np.sum(self.detector.rms * self.detector.tpa / np.maximum(self.detector.ph, self.detector.rms)))

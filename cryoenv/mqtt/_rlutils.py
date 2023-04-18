@@ -93,7 +93,7 @@ class HistoryWriter:
 
 
 class ReplayBuffer:
-    def __init__(self, buffer_size, input_shape, n_actions, memmap_loc=None, store_trajectory_idx=False):
+    def __init__(self, buffer_size, input_shape, n_actions, memmap_loc=None, store_trajectory_idx=True):
         buffer_size = int(buffer_size)
         self.buffer_size = buffer_size
 
