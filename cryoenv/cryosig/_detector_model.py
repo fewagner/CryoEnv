@@ -426,6 +426,7 @@ class DetectorModel:
                      tcrit=tcrit,
                      tfirst=True,
                      )
+        # pdb.set_trace()
 
         self.T = TIb[:, :self.nmbr_components]
         self.It = TIb[:, self.nmbr_components:]
@@ -449,6 +450,8 @@ class DetectorModel:
         """
         docs missing
         """
+        verb_save = self.verb
+        self.verb = False
         if norm:
             start = self.denorm(start, self.dac_range)
             end = self.denorm(end, self.dac_range)
@@ -456,16 +459,19 @@ class DetectorModel:
             self.dac[heater_channel] = np.array(dac)
             self.wait(seconds=self.tp_interval - self.record_length / self.sample_frequency)
             # self.update_capacity()
-            self.trigger(er=np.zeros(self.nmbr_components), tpa=self.tpa_queue[self.tpa_idx],
-                         verb=False, store=True, time_passes=True)
+            self.trigger(er=np.zeros(self.nmbr_components), tpa=self.tpa_queue[self.tpa_idx]*np.ones(self.nmbr_heater),
+                         store=True, time_passes=True)
             self.tpa_idx += 1
             if self.tpa_idx + 1 > len(self.tpa_queue):
                 self.tpa_idx = 0
+        self.verb = verb_save
 
     def sweep_Ib(self, start, end, tes_channel=0, norm=False):
         """
         docs missing
         """
+        verb_save = self.verb
+        self.verb = False
         if norm:
             start = self.denorm(start, self.Ib_range)
             end = self.denorm(end, self.Ib_range)
@@ -473,16 +479,19 @@ class DetectorModel:
             self.Ib[tes_channel] = np.array(Ib)
             self.wait(seconds=self.tp_interval - self.record_length / self.sample_frequency)
             # self.update_capacity()
-            self.trigger(er=np.zeros(self.nmbr_components), tpa=self.tpa_queue[self.tpa_idx],
-                         verb=False, store=True, time_passes=True)
+            self.trigger(er=np.zeros(self.nmbr_components), tpa=self.tpa_queue[self.tpa_idx]*np.ones(self.nmbr_heater),
+                         store=True, time_passes=True)
             self.tpa_idx += 1
             if self.tpa_idx + 1 > len(self.tpa_queue):
                 self.tpa_idx = 0
+        self.verb = verb_save
 
     def send_testpulses(self, nmbr_tp=1):
         """
         docs missing
         """
+        verb_save = self.verb
+        self.verb = False
         for i in trange(nmbr_tp):
             self.wait(seconds=self.tp_interval - self.record_length / self.sample_frequency)
             # self.update_capacity()
@@ -491,6 +500,7 @@ class DetectorModel:
             self.tpa_idx += 1
             if self.tpa_idx + 1 > len(self.tpa_queue):
                 self.tpa_idx = 0
+        self.verb = verb_save
 
     def clear_buffer(self):
         """
