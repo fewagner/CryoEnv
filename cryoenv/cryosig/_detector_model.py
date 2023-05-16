@@ -377,6 +377,7 @@ class DetectorModel:
     def trigger(self, er, tpa, store=True, time_passes=True):
         """
         docs missing
+        input in keV, V
         """
         assert len(er) == self.nmbr_components, ''
         assert len(tpa) == self.nmbr_heater, ''
@@ -1475,7 +1476,7 @@ class DetectorModel:
         """
         s21_int = -1 / (It)
         denom = self.L[tes_channel] / (self.tau_el(Tt, tes_channel) * self.L_I(Tt, It, tes_channel))
-        denom += (self.Rt[tes_channel](Tt) + self.Rs[tes_channel])  # here the sign other than in Irwin
+        denom += (self.Rt[tes_channel](Tt) - self.Rs[tes_channel])  # TODO sign was changed
         denom += 2 * np.pi * 1j * w * self.L[tes_channel] * self.tau_in(Tt, tes_channel) / self.L_I(Tt, It,
                                                                                                     tes_channel) * (
                          1 / self.tau_in(Tt, tes_channel) + 1 / self.tau_el(Tt, tes_channel))
@@ -1563,7 +1564,7 @@ class DetectorModel:
         return in (muA)^2/Hz
         """
         if self.L_I(Tt, It, tes_channel) > 0:
-            noise = np.abs(self.volt_to_current_ext(w, Tt, It, tes_channel)) ** 2
+            noise = np.abs(self.volt_to_current_int(w, Tt, It, tes_channel)) ** 2  # TODO this was changed!
             noise *= self.johnson_prefactor(Tt, self.Rt[tes_channel](Tt))
         else:
             noise = 0 * w / w
@@ -1574,7 +1575,7 @@ class DetectorModel:
         docs missing
         return in (muA)^2/Hz
         """
-        noise = np.abs(self.volt_to_current_int(w, Tt, It, tes_channel)) ** 2
+        noise = np.abs(self.volt_to_current_ext(w, Tt, It, tes_channel)) ** 2  # TODO this was changed!
         noise *= self.johnson_prefactor(self.Tb(0), self.Rs[tes_channel])
         noise *= self.excess_johnson[tes_channel] ** 2
         return noise
@@ -1593,7 +1594,7 @@ class DetectorModel:
         return in (muA)^2/Hz
         """
         if self.L_I(Tt, It, tes_channel) > 0:
-            noise = np.abs(self.volt_to_current_ext(w, Tt, It, tes_channel)) ** 2
+            noise = np.abs(self.volt_to_current_int(w, Tt, It, tes_channel)) ** 2
             noise *= 1 / np.maximum(w, 1) ** (self.flicker_slope[tes_channel])
             noise *= It ** 2 * self.Rt[tes_channel](Tt) ** 2
             noise *= self.tes_fluct[tes_channel] ** 2
@@ -1617,7 +1618,7 @@ class DetectorModel:
         power_ts_three = np.sin(2 * np.pi * self.t * 250)
         power_component_three = np.abs(np.fft.rfft(power_ts_three)) ** 2 * self.norm_factor_amp
 
-        noise = np.abs(self.volt_to_current_int(w, Tt, It, tes_channel)) ** 2
+        noise = np.abs(self.volt_to_current_ext(w, Tt, It, tes_channel)) ** 2
 
         idx0 = np.argmax(power_component)
         idx1 = np.argmax(power_component_two)
