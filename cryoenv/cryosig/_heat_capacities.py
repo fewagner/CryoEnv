@@ -1,5 +1,5 @@
 import numpy as np
-()
+
 def tes_heat_capacity(k, Tc, Rt):
 
     T = np.linspace(Tc - 10 / k, Tc + 10 / k, 500)
