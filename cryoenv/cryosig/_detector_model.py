@@ -77,6 +77,7 @@ class DetectorModel:
                  excess_phonon=np.array([1.]),
                  excess_johnson=np.array([6.]),
                  verb=True,
+                 adjust_heatcap=True,
                  **kwargs,
                  ):
 
@@ -90,7 +91,10 @@ class DetectorModel:
         else:
             self.Rt = [self.Rt_init(which_curve, k_, Tc_, Rt0_) for k_, Tc_, Rt0_ in zip(k, Tc, Rt0)]
 
-        self.heat_capacity_facts = [tes_heat_capacity(k_, Tc_, Rt_) for k_, Tc_, Rt_ in zip(k, Tc, self.Rt)]
+        if adjust_heatcap:
+            self.heat_capacity_facts = [tes_heat_capacity(k_, Tc_, Rt_) for k_, Tc_, Rt_ in zip(k, Tc, self.Rt)]
+        else:
+            self.heat_capacity_facts = [lambda x: 1. for k_, Tc_, Rt_ in zip(k, Tc, self.Rt)]
 
         tpa_queue = np.array(deepcopy(tpa_queue))
 
@@ -130,7 +134,7 @@ class DetectorModel:
             assert len(Ib) == self.nmbr_tes, ''
         else:
             assert len(Rt) == self.nmbr_tes, ''
-            assert Rt[0][np.array([0.01, 0.02])].shape == (2,), ''
+            assert Rt[0](np.array([0.01, 0.02])).shape == (2,), ''
 
         # define number of heaters
         self.nmbr_heater = len(Rh)
@@ -377,6 +381,7 @@ class DetectorModel:
     def trigger(self, er, tpa, store=True, time_passes=True):
         """
         docs missing
+        input in keV, V
         """
         assert len(er) == self.nmbr_components, ''
         assert len(tpa) == self.nmbr_heater, ''
@@ -1297,7 +1302,7 @@ class DetectorModel:
 
         def froot_dac(dac):
             self.set_control(dac=np.array([dac, ]), Ib=self.Ib, norm=False)
-            self.wait(5)
+            self.wait(50)
             rt = self.Rt[0](self.T[-1, 0])
             return rt - R_op
 
@@ -1320,7 +1325,7 @@ class DetectorModel:
 
         def froot_Rh(Rh):
             self.Rh = np.array([Rh, ])
-            self.wait(5)
+            self.wait(50)
             rt = self.Rt[0](self.T[-1, 0])
             return rt - R_op
 
@@ -1343,7 +1348,7 @@ class DetectorModel:
 
         def froot_eps(eps):
             self.eps = np.array([[0.99, 0.01], [eps, 1 - eps], ])
-            self.wait(5)
+            self.wait(50)
             self.trigger(er=np.array([0., er]), tpa=np.array([0.0]))
             ev = self.get_record(no_noise=True)
             ph = np.max(ev) - np.mean(ev[:2000])
@@ -1368,7 +1373,7 @@ class DetectorModel:
 
         def froot_delta(delta):
             self.delta = np.array([[delta, 1 - delta], ])
-            self.wait(5)
+            self.wait(50)
             self.trigger(er=np.array([0., 0.]), tpa=np.array([tpa]))
             ev = self.get_record(no_noise=True)
             ph = np.max(ev) - np.mean(ev[:2000])
@@ -1393,7 +1398,7 @@ class DetectorModel:
 
         def froot_psc(psc):
             self.pulser_scale = np.array([psc])
-            self.wait(5)
+            self.wait(50)
             self.trigger(er=np.array([0., 0.]), tpa=np.array([tpa]))
             ev = self.get_record(no_noise=True)
             ph = np.max(ev) - np.mean(ev[:2000])
@@ -1473,32 +1478,30 @@ class DetectorModel:
         docs missing
         for phonon noise
         """
-        s21_int = -1 / (It)
-        denom = self.L[tes_channel] / (self.tau_el(Tt, tes_channel) * self.L_I(Tt, It, tes_channel))
-        denom += (self.Rt[tes_channel](Tt) + self.Rs[tes_channel])  # here the sign other than in Irwin
-        denom += 2 * np.pi * 1j * w * self.L[tes_channel] * self.tau_in(Tt, tes_channel) / self.L_I(Tt, It,
-                                                                                                    tes_channel) * (
-                         1 / self.tau_in(Tt, tes_channel) + 1 / self.tau_el(Tt, tes_channel))
-        denom -= (4 * np.pi ** 2 * w ** 2 * self.tau_in(Tt, tes_channel) * self.L[tes_channel]) / self.L_I(Tt, It,
-                                                                                                           tes_channel)
-        s21_int /= denom
+        if self.L_I(Tt, It, tes_channel) > 0:
+            s21_int = -1 / (It)
+            denom = self.L[tes_channel] / (self.tau_el(Tt, tes_channel) * self.L_I(Tt, It, tes_channel))
+            denom += (self.Rt[tes_channel](Tt) - self.Rs[tes_channel])  # TODO sign was changed
+            denom += 2 * np.pi * 1j * w * self.L[tes_channel] * self.tau_in(Tt, tes_channel) / self.L_I(Tt, It,
+                                                                                                        tes_channel) * (
+                             1 / self.tau_in(Tt, tes_channel) + 1 / self.tau_el(Tt, tes_channel))
+            denom -= (4 * np.pi ** 2 * w ** 2 * self.tau_in(Tt, tes_channel) * self.L[tes_channel]) / self.L_I(Tt, It,
+                                                                                                               tes_channel)
+            s21_int /= denom
+        else:
+            s21_int = 0.
         return s21_int
 
     def volt_to_current_int(self, w, Tt, It, tes_channel=0):
         """
         docs missing
-        for Johnson shunt and 1/f
+        for Johnson shunt
         """
-        s21_int = -1 / (It)
-        denom = self.L[tes_channel] / self.tau_el(Tt, tes_channel)
-        denom += (self.Rt[tes_channel](Tt) + self.Rs[tes_channel]) * self.L_I(Tt, It,
-                                                                              tes_channel)  # here the sign other than in Irwin
-        denom += 2 * np.pi * 1j * w * self.L[tes_channel] * self.tau_in(Tt, tes_channel) * (
-                1 / self.tau_in(Tt, tes_channel) + 1 / self.tau_el(Tt, tes_channel))
-        denom -= (4 * np.pi ** 2 * w ** 2 * self.tau_in(Tt, tes_channel) * self.L[tes_channel])
-        s21_int /= denom
-
-        s22_int = -s21_int * It * (1 + 2 * np.pi * 1j * w * self.tau_in(Tt, tes_channel))
+        if self.L_I(Tt, It, tes_channel) > 0:
+            s21_int = self.power_to_current_int(w, Tt, It, tes_channel=tes_channel)
+            s22_int = -s21_int * It * (1 + 2 * np.pi * 1j * w * self.tau_in(Tt, tes_channel))
+        else:
+            s22_int = 1 / (self.Rt[tes_channel](Tt) + self.Rs[tes_channel] + 2 * np.pi * 1j * w * self.L[tes_channel])
         return s22_int
 
     def power_to_current_ext(self, w, Tt, It, tes_channel=0):
@@ -1506,16 +1509,19 @@ class DetectorModel:
         docs missing
         for Johnson TES
         """
-        s21_ext = -1 / (It)
-        denom = self.L[tes_channel] * self.tau_in(Tt, tes_channel) / (
-                self.tau_el(Tt, tes_channel) * self.tau_I(Tt, It, tes_channel) * self.L_I(Tt, It, tes_channel))
-        denom += 2 * self.Rt[tes_channel](Tt)
-        denom += 2 * np.pi * 1j * w * self.L[tes_channel] * self.tau_in(Tt, tes_channel) / self.L_I(Tt, It,
-                                                                                                    tes_channel) * (
-                         1 / self.tau_I(Tt, It, tes_channel) + 1 / self.tau_el(Tt, tes_channel))
-        denom -= (4 * np.pi ** 2 * w ** 2 * self.tau_in(Tt, tes_channel)) / self.L_I(Tt, It, tes_channel) * self.L[
-            tes_channel]
-        s21_ext /= denom
+        if self.L_I(Tt, It, tes_channel) > 0:
+            s21_ext = -1 / (It)
+            denom = self.L[tes_channel] * self.tau_in(Tt, tes_channel) / (
+                    self.tau_el(Tt, tes_channel) * self.tau_I(Tt, It, tes_channel) * self.L_I(Tt, It, tes_channel))
+            denom += 2 * self.Rt[tes_channel](Tt)
+            denom += 2 * np.pi * 1j * w * self.L[tes_channel] * self.tau_in(Tt, tes_channel) / self.L_I(Tt, It,
+                                                                                                        tes_channel) * (
+                             1 / self.tau_I(Tt, It, tes_channel) + 1 / self.tau_el(Tt, tes_channel))
+            denom -= (4 * np.pi ** 2 * w ** 2 * self.tau_in(Tt, tes_channel)) / self.L_I(Tt, It, tes_channel) * self.L[
+                tes_channel]
+            s21_ext /= denom
+        else:
+            s21_ext = 0.
         return s21_ext
 
     def volt_to_current_ext(self, w, Tt, It, tes_channel=0):
@@ -1523,9 +1529,12 @@ class DetectorModel:
         docs missing
         for Johnson TES and flicker
         """
-        s21_ext = self.power_to_current_ext(w, Tt, It, tes_channel)
-        s22_ext = s21_ext * It * (self.L_I(Tt, It, tes_channel) - 1) / self.L_I(Tt, It, tes_channel) * (
-                1 + 2 * np.pi * 1j * w * self.tau_I(Tt, It, tes_channel))
+        if self.L_I(Tt, It, tes_channel) > 0:
+            s21_ext = self.power_to_current_ext(w, Tt, It, tes_channel=tes_channel)
+            s22_ext = s21_ext * It * (self.L_I(Tt, It, tes_channel) - 1) / self.L_I(Tt, It, tes_channel) * (
+                    1 + 2 * np.pi * 1j * w * self.tau_I(Tt, It, tes_channel))
+        else:
+            s22_ext = 1 / (self.Rt[tes_channel](Tt) + self.Rs[tes_channel] + 2 * np.pi * 1j * w * self.L[tes_channel])
         return s22_ext
 
     def thermal_prefactor(self, Tt, tes_channel=0):
@@ -1562,11 +1571,8 @@ class DetectorModel:
         docs missing
         return in (muA)^2/Hz
         """
-        if self.L_I(Tt, It, tes_channel) > 0:
-            noise = np.abs(self.volt_to_current_ext(w, Tt, It, tes_channel)) ** 2
-            noise *= self.johnson_prefactor(Tt, self.Rt[tes_channel](Tt))
-        else:
-            noise = 0 * w / w
+        noise = np.abs(self.volt_to_current_int(w, Tt, It, tes_channel)) ** 2  # TODO this was changed!
+        noise *= self.johnson_prefactor(Tt, self.Rt[tes_channel](Tt))
         return noise
 
     def shunt_johnson(self, w, Tt, It, tes_channel=0):
@@ -1574,7 +1580,7 @@ class DetectorModel:
         docs missing
         return in (muA)^2/Hz
         """
-        noise = np.abs(self.volt_to_current_int(w, Tt, It, tes_channel)) ** 2
+        noise = np.abs(self.volt_to_current_ext(w, Tt, It, tes_channel)) ** 2  # TODO this was changed!
         noise *= self.johnson_prefactor(self.Tb(0), self.Rs[tes_channel])
         noise *= self.excess_johnson[tes_channel] ** 2
         return noise
@@ -1593,7 +1599,7 @@ class DetectorModel:
         return in (muA)^2/Hz
         """
         if self.L_I(Tt, It, tes_channel) > 0:
-            noise = np.abs(self.volt_to_current_ext(w, Tt, It, tes_channel)) ** 2
+            noise = np.abs(self.power_to_current_int(w, Tt, It, tes_channel)) ** 2
             noise *= 1 / np.maximum(w, 1) ** (self.flicker_slope[tes_channel])
             noise *= It ** 2 * self.Rt[tes_channel](Tt) ** 2
             noise *= self.tes_fluct[tes_channel] ** 2
@@ -1617,7 +1623,7 @@ class DetectorModel:
         power_ts_three = np.sin(2 * np.pi * self.t * 250)
         power_component_three = np.abs(np.fft.rfft(power_ts_three)) ** 2 * self.norm_factor_amp
 
-        noise = np.abs(self.volt_to_current_int(w, Tt, It, tes_channel)) ** 2
+        noise = np.abs(self.volt_to_current_ext(w, Tt, It, tes_channel)) ** 2
 
         idx0 = np.argmax(power_component)
         idx1 = np.argmax(power_component_two)
