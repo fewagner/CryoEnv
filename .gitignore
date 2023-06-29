@@ -164,3 +164,13 @@ tests/mqtt/new_data
 /tests/mqtt/from_GS/
 /tests/mqtt/new_data/
 /tests/buffers/
+
+tests/buffers_inf_dt/
+tests/buffers_inf_dt_10m/
+tests/buffers_inf_dt_40mretrain/
+tests/buffers_inf_sac/
+tests/output/
+tests/output_40m/
+tests/saved_pars/transformer_dataset_test.pkl
+tests/saved_pars/transformer_dataset_train.pkl
+tests/saved_pars/transformer_dataset_validation.pkl
