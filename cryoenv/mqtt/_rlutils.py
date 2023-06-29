@@ -348,3 +348,4 @@ def double_tes(pars):
     pars_2tes['pileup_comp'] = 2
 
     return pars_2tes
+

@@ -112,7 +112,7 @@ class CryoWorldModel(nn.Module):
 
 class QNetwork(nn.Module):
 
-    def __init__(self, n_observations, n_actions, hidden_dims=[256, 256], device="cpu"):
+    def __init__(self, n_observations, n_actions, hidden_dims=[256, 256], device="cpu", n_grid=2000):
         super(QNetwork, self).__init__()
         self.device = device
         network_1 = []
@@ -137,6 +137,9 @@ class QNetwork(nn.Module):
         self.network_2 = nn.Sequential(*network_2)
 
         self.to(self.device)
+        self.n_observations = n_observations
+        self.n_actions = n_actions
+        self.n_grid = n_grid
 
     def forward(self, observations, actions):
         x = torch.cat([observations, actions], 1)
@@ -145,6 +148,34 @@ class QNetwork(nn.Module):
         x2 = self.network_2(x)
 
         return x1, x2
+
+    def greedy(self, observations):
+        observations = torch.from_numpy(np.array(observations)).float().to(self.device).reshape(1,-1)
+
+        def f(a):
+            x1, x2 = self.forward(observations, a)
+            return torch.minimum(x1, x2)
+
+        class Actions(nn.Module):
+
+            def __init__(self, n_actions):
+                super(Actions, self).__init__()
+                self.actions = torch.nn.Parameter(torch.zeros((1, n_actions)), requires_grad=True)
+
+            def forward(self):
+                x = self.actions
+                return torch.tanh(x)
+
+        actions = Actions(self.n_actions).to(self.device)
+        optim = torch.optim.Adam(actions.parameters(), lr=1e-2)
+
+        for i in range(500):
+            optim.zero_grad()
+            loss = -f(actions())
+            loss.backward()
+            optim.step()
+
+        return actions().detach().cpu().numpy().flatten()
 
 
 class GaussianPolicy(nn.Module):
@@ -182,6 +213,14 @@ class GaussianPolicy(nn.Module):
         log_std = torch.clamp(log_std, min=-20, max=2)
         return mu, log_std
 
+    @staticmethod
+    def gauss(x, mu, sigma):
+        return torch.exp( - ((x - mu) / sigma) ** 2 / 2) / sigma / np.sqrt(2 * np.pi)
+
+    @staticmethod
+    def tanhgauss(y, mu, sigma):
+        return torch.exp(- ((torch.arctanh(y) - mu) / sigma) ** 2 / 2) / sigma / np.sqrt(2 * np.pi) / torch.abs(1 - y ** 2)
+
     def sample(self, observations, greedy=False):
         mu, log_std = self.forward(observations)
         sigma = log_std.exp()
@@ -192,6 +231,7 @@ class GaussianPolicy(nn.Module):
 
         log_probs = probs.log_prob(sample)
         log_probs -= torch.log(1 - actions.pow(2) + self.noise)
+        # log_probs = torch.log(self.tanhgauss(actions, mu, sigma))  # equivalent to the above lines
         log_probs = log_probs.sum(dim=1, keepdim=True)
 
         return actions, log_probs
@@ -215,7 +255,7 @@ class SoftActorCritic(Agent):
             batch_size=256,
             tau=0.005,  # update factor
             gamma=0.99,  # discount factor
-            temperature=0.2,  # initial entropy coefficient
+            temperature=0.2,  # initial entropy coefficient alpha
             target_update_interval=1,
             device="cpu",
             entropy_tuning=True,  # activate automatic entropy tuning
@@ -223,6 +263,9 @@ class SoftActorCritic(Agent):
             model_steps=1,
             learning_starts=1,
             grad_clipping=0.5,
+            target_entropy=None,  # float or None
+            target_entropy_reduction=.9999,  # after 10000 gradient steps, target entropy is ~ 0.35 * target_entropy
+            target_entropy_std=0.088,
     ):
         self.device = device
         self.batch_size = batch_size
@@ -269,12 +312,18 @@ class SoftActorCritic(Agent):
         else:
             self.buffer = buffer
 
-        self.target_entropy = -torch.prod(
-            torch.tensor(self.env.action_space.shape).to(self.device)
-        ).item()
+        self.action_dim = torch.prod(
+                torch.tensor(self.env.action_space.shape).to(self.device)
+            ).item()
 
-        self.log_alpha = torch.zeros(1, requires_grad=True, device=self.device)
-        self.alpha_optim = optim.Adam(
+        if target_entropy is None:
+            self.target_entropy = self.entropy_gaussian(std=target_entropy_std, d=self.action_dim)
+            # for std=0.088 this gives the same as the original SAC implementation (-dim action_space)
+        else:
+            self.target_entropy = target_entropy
+
+        self.log_alpha = torch.tensor(torch.log(self.alpha), requires_grad=True, device=self.device)
+        self.alpha_optim = optim.SGD(
             [self.log_alpha], lr=lr, weight_decay=weight_decay
         )
         self.total_num_steps = 0
@@ -282,6 +331,13 @@ class SoftActorCritic(Agent):
 
         self.world_model = world_model
         self.model_steps = model_steps
+
+        self.target_entropy_reduction = target_entropy_reduction
+        self.target_entropy_std = target_entropy_std
+
+    @staticmethod
+    def entropy_gaussian(std, d):
+        return d / 2. * np.log(2. * np.pi * np.e * std ** 2)
 
     def learn(self, episodes: int = 1, episode_steps: int = 100, writer=None, two_pbars=True, tracker=None):
         self.policy.train()
@@ -300,7 +356,7 @@ class SoftActorCritic(Agent):
             if two_pbars:
                 iterator = tqdm(iterator, leave=False)
             for i in iterator:
-                action = self._choose_action(state).cpu().detach().numpy()[0]
+                action = self._choose_action(state, greedy=False).cpu().detach().numpy()[0]
                 next_state, reward, terminated, truncated, info = self.env.step(action)
                 return_ += reward
                 if tracker is not None:
@@ -342,7 +398,7 @@ class SoftActorCritic(Agent):
             self.buffer.store_transition(state, action, reward, next_state, terminated)
             state = next_state
 
-    def _learn_model_step(self):
+    def _learn_model_step(self):  # not properly tested
         state = np.random.uniform(-1, 1, size=(self.batch_size, self.env.observation_space.shape[0]))
         action = np.random.uniform(-1, 1, size=(self.batch_size, self.env.action_space.shape[0]))
         next_state, terminal = self.world_model.get_next_state(state, action)
@@ -391,7 +447,7 @@ class SoftActorCritic(Agent):
 
         # calc next q values for TD update
         with torch.no_grad():
-            next_actions, next_log_probs = self.policy.sample(next_state)
+            next_actions, next_log_probs = self.policy.sample(next_state, greedy=False)  # could try greedy here!
             next_critic1_target, next_critic2_target = self.target_critic(next_state, next_actions)
             next_min_critic_target = torch.min(next_critic1_target, next_critic2_target) - self.alpha * next_log_probs
             next_q_value = reward + torch.logical_not(terminal) * self.gamma * next_min_critic_target
@@ -407,7 +463,7 @@ class SoftActorCritic(Agent):
         self.critic_optim.step()
 
         # train actor/policy with TD error
-        actions, log_probs = self.policy.sample(state)
+        actions, log_probs = self.policy.sample(state, greedy=False)  # here is off policy
         next_critic_1, next_critic_2 = self.critic(state, actions)
         next_min_q = torch.min(next_critic_1, next_critic_2)
         policy_loss = ((self.alpha * log_probs) - next_min_q).mean()
@@ -417,11 +473,14 @@ class SoftActorCritic(Agent):
         self.policy_optim.step()
 
         if self.entropy_tuning:
-            alpha_loss = -(self.log_alpha * (log_probs + self.target_entropy).detach()).mean()
+            alpha_loss = - (self.log_alpha * (log_probs + self.target_entropy).detach()).mean()  # - log_probs is entropy
             self.alpha_optim.zero_grad()
             alpha_loss.backward(retain_graph=True)
             self.alpha_optim.step()
             self.alpha = self.log_alpha.exp()
+
+            self.target_entropy_std *= self.target_entropy_reduction
+            self.target_entropy = self.entropy_gaussian(self.target_entropy_std, self.action_dim)
 
         if update_target_value:
             self._update_target_value()
@@ -462,9 +521,9 @@ class SoftActorCritic(Agent):
             for j in range(self.model_steps):
                 self._learn_model_step()
 
-    def _choose_action(self, state):
+    def _choose_action(self, state, greedy=False):
         state_tensor = torch.tensor(np.array([state])).float().to(self.device)
-        action, _ = self.policy.sample(state_tensor)
+        action, _ = self.policy.sample(state_tensor, greedy=greedy)
         return action
 
     def _update_target_value(self, tau=None):
