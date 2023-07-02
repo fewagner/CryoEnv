@@ -79,8 +79,8 @@ if __name__ == '__main__':
             'tpa_queue': [0.1, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
             'pileup_prob': 0.,
             'tp_interval': 10,
-            'dac_range': (0., 5.), 
-            'Ib_range': (0.5, 5.), 
+            'dac_range': (0., 5.) if name_load in ['li1p', 'li2p'] else (0., 10.),  # this was changed
+            'Ib_range': (0.5, 5.) if name_load in ['li1p', 'li2p'] else (0.1, 3.),  # this was changed
             'adc_range': (-10., 10.),
             'rseed': rseed,
             'tau_cap': np.array([args['tau']]),
@@ -94,7 +94,7 @@ if __name__ == '__main__':
         aug_pars = augment_pars(pars_load, scale=args['scale'], **add_pars)
 
         env = gym.make('cryoenv:cryoenv-sig-v0',
-                           omega=0.01,
+                           omega=0.0,  # this was changed
                            log_reward=False,
                            rand_start=True,
                            relax_time=60,
@@ -102,7 +102,7 @@ if __name__ == '__main__':
                            div_adc_by_bias=True,
                            pars=aug_pars,
                            render_mode='human',
-                           rand_tpa=True,
+                           rand_tpa=False,
                            )
 
         # check if transition is reachable
@@ -127,10 +127,14 @@ if __name__ == '__main__':
     obs, info = env.reset()
 
     # In[11]:
+    
+    episodes = 70 if args['double_tes'] else 40
 
     model = SoftActorCritic(env, policy = "GaussianPolicy", critic = "QNetwork", lr=args['lr'], buffer_size=buffer_size, learning_starts=0,
                             batch_size=args['batch_size'], gamma=args['gamma'], gradient_steps=args['gradient_steps'], grad_clipping=.5, tau=0.005, 
-                            device='cuda' if torch.cuda.is_available() else 'cpu')
+                            device='cuda' if torch.cuda.is_available() else 'cpu',
+                            target_entropy_reduction=0.05 ** (1 / (episodes * 60 * args['gradient_steps'])),  # reduce stddev by factor 20
+                           )
 
     # In[12]:
 
@@ -154,8 +158,6 @@ if __name__ == '__main__':
             state = next_state
     
     # In[15]:
-    
-    episodes = 70 if args['double_tes'] else 40
 
     model.learn(episodes = episodes, 
                 episode_steps = 60, 

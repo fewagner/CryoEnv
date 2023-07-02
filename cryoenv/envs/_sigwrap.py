@@ -62,7 +62,7 @@ class CryoEnvSigWrapper(gym.Env):
 
     # public
 
-    def step(self, action):
+    def step(self, action, alternative_order=False):
 
         info = {}
 
@@ -96,7 +96,7 @@ class CryoEnvSigWrapper(gym.Env):
             #     (1 - relax_factor) * self.detector.get('dac', norm=True)
 
         if self.render_mode == "plotly":  # render before CP is sent
-            self.render()
+            self.render(alternative_order=alternative_order)
 
         # attention, important that we take the reward here, otherwise we would calc it with the CPs
         if not self.log_reward:
@@ -181,7 +181,7 @@ class CryoEnvSigWrapper(gym.Env):
 
         return self.state, info
 
-    def render(self, save_path=None):
+    def render(self, save_path=None, alternative_order=False):
         if self.render_mode == "human":
             # self.detector.plot_event(show=True)
             self.detector.plot_temperatures(show=True)
@@ -205,7 +205,10 @@ class CryoEnvSigWrapper(gym.Env):
                     pulse = pulse[i]
                     flag = np.array(self.detector.buffer_channel) == i
                     buffer_ph = np.array(self.detector.buffer_ph)[flag]
-                    idx_start = 0 if len(flag) % 2 == 0 else 1  # this assumes every second pulse is CP
+                    if not alternative_order:
+                        idx_start = 0 if len(flag) % 2 == 0 else 1  # this assumes every second pulse is CP
+                    else:
+                        idx_start = 1 if len(flag) % 2 == 0 else 0  # this assumes every first pulse is CP
                     ph = buffer_ph[idx_start::2]
                     buffer_dac = np.array(self.detector.buffer_dac)[flag]
                     dac = buffer_dac[idx_start::2]
