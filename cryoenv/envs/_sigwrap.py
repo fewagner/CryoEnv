@@ -22,7 +22,7 @@ class CryoEnvSigWrapper(gym.Env):
 
     def __init__(self, pars=None, omega=1e-2, render_mode=None,  # sample_pars=False,
                  rand_start=False, relax_time=90, log_reward=False, tpa_in_state=True,
-                 div_adc_by_bias=True, rand_tpa=True,
+                 div_adc_by_bias=True, rand_tpa=True, weighted_reward=True
                  ):
         if pars is not None:
             self.pars = pars
@@ -46,6 +46,7 @@ class CryoEnvSigWrapper(gym.Env):
         self.div_adc_by_bias = div_adc_by_bias
         # self.dac_memory = np.zeros(self.detector.nmbr_heater)
         # self.Ib_memory = np.zeros(self.detector.nmbr_tes)
+        self.weighted_reward = weighted_reward
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
@@ -62,7 +63,7 @@ class CryoEnvSigWrapper(gym.Env):
 
     # public
 
-    def step(self, action):
+    def step(self, action, alternative_order=False):
 
         info = {}
 
@@ -96,16 +97,24 @@ class CryoEnvSigWrapper(gym.Env):
             #     (1 - relax_factor) * self.detector.get('dac', norm=True)
 
         if self.render_mode == "plotly":  # render before CP is sent
-            self.render()
+            self.render(alternative_order=alternative_order)
 
         # attention, important that we take the reward here, otherwise we would calc it with the CPs
         if not self.log_reward:
-            # exclude the TPA from the reward for importance sampling of small TPAs!
-            reward = - np.sum(
-                self.detector.rms / np.maximum(self.detector.ph, self.detector.rms))  # * self.detector.tpa, np.maximum(self.detector.ph, self.detector.rms)
+            if self.weighted_reward:
+                # exclude the TPA from the reward for importance sampling of small TPAs!
+                reward = - np.sum(
+                    self.detector.rms / np.maximum(self.detector.ph, self.detector.rms))
+            else:
+                reward = - np.sum(
+                    self.detector.rms * self.detector.tpa / np.maximum(self.detector.ph, self.detector.rms))
         else:
-            reward = - np.log(
-                np.sum(self.detector.rms * self.detector.tpa / np.maximum(self.detector.ph, self.detector.rms)))
+            if self.weighted_reward:
+                reward = - np.log(
+                    np.sum(self.detector.rms / np.maximum(self.detector.ph, self.detector.rms)))
+            else:
+                reward = - np.log(
+                    np.sum(self.detector.rms * self.detector.tpa / np.maximum(self.detector.ph, self.detector.rms)))
         reward -= self.omega * np.sum((new_state[2 * self.ntes:3 * self.ntes + self.nheater] -
                                        self.state[2 * self.ntes:3 * self.ntes + self.nheater]) ** 2)
 
@@ -114,6 +123,8 @@ class CryoEnvSigWrapper(gym.Env):
         self.detector.trigger(er=np.zeros(self.detector.nmbr_components),
                               tpa=10. * np.ones(self.nheater))
         new_state[-self.nheater:] = self.detector.get('ph', norm=True, div_adc_by_bias=self.div_adc_by_bias)
+
+        reward -= self.omega * np.sum((new_state[-self.nheater:] - self.state[-self.nheater:]) ** 2)
 
         self.state = new_state
 
@@ -181,7 +192,7 @@ class CryoEnvSigWrapper(gym.Env):
 
         return self.state, info
 
-    def render(self, save_path=None):
+    def render(self, save_path=None, alternative_order=False):
         if self.render_mode == "human":
             # self.detector.plot_event(show=True)
             self.detector.plot_temperatures(show=True)
@@ -205,7 +216,10 @@ class CryoEnvSigWrapper(gym.Env):
                     pulse = pulse[i]
                     flag = np.array(self.detector.buffer_channel) == i
                     buffer_ph = np.array(self.detector.buffer_ph)[flag]
-                    idx_start = 0 if len(flag) % 2 == 0 else 1  # this assumes every second pulse is CP
+                    if not alternative_order:
+                        idx_start = 0 if len(flag) % 2 == 0 else 1  # this assumes every second pulse is CP
+                    else:
+                        idx_start = 1 if len(flag) % 2 == 0 else 0  # this assumes every first pulse is CP
                     ph = buffer_ph[idx_start::2]
                     buffer_dac = np.array(self.detector.buffer_dac)[flag]
                     dac = buffer_dac[idx_start::2]
