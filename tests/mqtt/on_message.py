@@ -71,9 +71,9 @@ def receive_as_control(client, userdata, msg):
                 if userdata['log_reward']:
                     reward = - np.log(rms * data['TPA'] / ph*(1+userdata['ph_amp'])) - userdata['omega'] * np.sum((new_state[1:] - userdata['state'][1:]) ** 2) - penalty
                 elif userdata['inv_reward']:
-                    reward = (1+userdata['ph_amp']) / rms / data['TPA'] /  - userdata['omega'] * np.sum((new_state[1:] - userdata['state'][1:]) ** 2) - penalty
+                    reward = ph * (1+userdata['ph_amp']) / rms / data['TPA'] /  - userdata['omega'] * np.sum((new_state[1:] - userdata['state'][1:]) ** 2) - penalty
                 else:
-                    reward = - rms * data['TPA'] / (1+userdata['ph_amp']) - userdata['omega'] * np.sum((new_state[1:] - userdata['state'][1:]) ** 2) - penalty
+                    reward = - rms * data['TPA'] / ph * (1+userdata['ph_amp']) - userdata['omega'] * np.sum((new_state[1:] - userdata['state'][1:]) ** 2) - penalty
                 print('Reward: ', reward)
                 terminated = False
                 truncated = False

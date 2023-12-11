@@ -1,18 +1,18 @@
 # mqtt info
-broker = 'localhost'  # '172.19.4.159'  # 'broker.hivemq.com'
+broker = '172.19.4.159'  # 'broker.hivemq.com'
 port = 1883
 username = 'fwagner'
 password = '1234'
 
 # constants
-channel = 6
+channel = 1
 buffer_size = 500
 rseed = 2
 adc_range = (-10., 10.)
 dac_range = (0., 5.)
 Ib_range = (.5, 5.)
 testpulse_interval = 10.
-env_steps = 200
+env_steps = 400
 steps_per_episode = 40
 inference_steps = 40
 record_length = 16384
@@ -24,7 +24,7 @@ update_factor = 0.005
 penalty = 0.
 gradient_steps = 20
 lr = 3e-4
-gamma = .99
+gamma = .9
 learning_starts = 0
 tpa_queue = [1]
 pileup_prob = 0.
@@ -33,14 +33,14 @@ tau = 45
 log_reward = False
 tpa_in_state = True
 sweep = True
-load = False
+load = True
 
 # paths
-path_test = 'firstv1_2/'
+path_test = '/datastor2/mqtt_tests/firstv1_38/'
 path_models = path_test + 'models/'
 path_buffer = path_test + 'data/'
 
-path_load = 'firstv1_1/'
+path_load = '/datastor2/mqtt_tests/firstv1_37/'
 
 # messages from control
 subscribe_channel_msg = {
