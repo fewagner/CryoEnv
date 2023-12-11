@@ -581,7 +581,7 @@ class DetectorModel:
             Rmin, Rmax = self.Rt[tes_channel](Tmin), self.Rt[tes_channel](Tmax)
             temp = np.linspace(np.minimum(self.Tc[tes_channel] - 4 / self.k[tes_channel], np.minimum(Tmin, self.Tb(0))),
                                np.maximum(self.Tc[tes_channel] + 4 / self.k[tes_channel], Tmax), 1000)
-            axes[2 * i + 0].plot(temp, 1000 * self.Rt[tes_channel](temp), label='Transition curve', c='#FF7979',
+            axes[2 * i + 0].plot(temp, 1000 * self.Rt[tes_channel](temp), label='Transition curve (sim)', c='C3',  # #FF7979
                                  linewidth=2)
             if xlim_temp is None:
                 axes[2 * i + 0].axvline(x=self.Tb(0), color='grey', linestyle='dashed', label='Heat bath')
@@ -590,12 +590,12 @@ class DetectorModel:
                     axes[2 * i + 0].axvline(x=self.Tb(0), color='grey', linestyle='dashed', label='Heat bath')
             axes[2 * i + 0].fill_between([Tmin, Tmax],
                                          [0, 0],
-                                         [1000 * Rmin, 1000 * Rmax], color='#99CCFF', alpha=0.5, zorder=10)
+                                         [1000 * Rmin, 1000 * Rmax], color='C0', alpha=0.5, zorder=10)  # #99CCFF
             axes[2 * i + 0].fill_between([temp[0], Tmin, Tmax],
                                          [1000 * Rmin, 1000 * Rmin, 1000 * Rmax],
-                                         [1000 * Rmax, 1000 * Rmax, 1000 * Rmax], color='#99CCFF', alpha=0.5, zorder=10)
+                                         [1000 * Rmax, 1000 * Rmax, 1000 * Rmax], color='C0', alpha=0.5, zorder=10)  # #99CCFF
             axes[2 * i + 0].plot([temp[0], Tmin], [1000 * Rmin, 1000 * Rmin], color='black',  # alpha=0.5,
-                                 linewidth=2, label='OP', zorder=100)
+                                 linewidth=2, label='OP (sim)', zorder=100)
             axes[2 * i + 0].plot([temp[0], Tmax], [1000 * Rmax, 1000 * Rmax], color='black',  # alpha=0.5,
                                  linewidth=2, zorder=100)
             axes[2 * i + 0].plot([Tmin, Tmin], [0, 1000 * Rmin], color='black',  # alpha=O.5,
@@ -611,10 +611,10 @@ class DetectorModel:
                 axes[2 * i + 0].set_xlim(xlim_temp)
 
             # recoil signature plot
-            axes[2 * i + 1].plot(self.t, self.squid_out_noise[:, i], label='Squid output', zorder=5, c='black',
+            axes[2 * i + 1].plot(self.t, self.squid_out_noise[:, i], label='Pulse + noise (sim)', zorder=5, c='black',
                                  linewidth=1,
                                  alpha=0.7)
-            axes[2 * i + 1].plot(self.t, self.squid_out[:, i], label='Recoil signature', zorder=10, c='red',
+            axes[2 * i + 1].plot(self.t, self.squid_out[:, i], label='Pulse (sim)', zorder=10, c='C3',
                                  linewidth=2,
                                  alpha=1)
             axes[2 * i + 1].set_ylabel('Voltage (V)')  # , color='red'
@@ -729,7 +729,7 @@ class DetectorModel:
 
         w, nps = self.get_nps(Tt, It, tes_channel)
         h = self.get_lowpass(w)
-        ax.loglog(w, 1e6 * np.sqrt(nps), label='combined', linewidth=2, color='black', zorder=10)
+        ax.loglog(w, 1e6 * np.sqrt(nps), label='combined (sim)', linewidth=2, color='black', zorder=10)
 
         if not only_sum:
             w = np.fft.rfftfreq(self.record_length, 1 / self.sample_frequency)
