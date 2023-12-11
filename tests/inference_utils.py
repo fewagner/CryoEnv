@@ -22,7 +22,7 @@ import argparse
 @dataclass
 class DecisionTransformerGymDataCollator:
     return_tensors: str = "pt"
-    max_len: int = 20 #subsets of the episode we use for training
+    max_len: int = 60  #subsets of the episode we use for training
     state_dim: int = 6  # size of state space
     act_dim: int = 2  # size of action space
     max_ep_len: int = 60 # max episode length in the dataset

@@ -17,6 +17,8 @@ import argparse
 from tqdm.auto import tqdm, trange
 from cryoenv.mqtt import SoftActorCritic, ReturnTracker, HistoryWriter, CryoWorldModel, generate_sweep, augment_pars, double_tes
 
+from cryoenv.envs import CryoEnvSigWrapper
+
 import pdb 
 import os 
 
@@ -93,17 +95,28 @@ if __name__ == '__main__':
 
         aug_pars = augment_pars(pars_load, scale=args['scale'], **add_pars)
 
-        env = gym.make('cryoenv:cryoenv-sig-v0',
-                           omega=0.0,  # this was changed
-                           log_reward=False,
-                           rand_start=True,
-                           relax_time=60,
-                           tpa_in_state=True,
-                           div_adc_by_bias=True,
-                           pars=aug_pars,
-                           render_mode='human',
-                           rand_tpa=False,
-                           )
+#         env = gym.make('cryoenv:cryoenv-sig-v0',
+#                            omega=0.0,  # this was changed
+#                            log_reward=False,
+#                            rand_start=True,
+#                            relax_time=60,
+#                            tpa_in_state=True,
+#                            div_adc_by_bias=True,
+#                            pars=aug_pars,
+#                            render_mode='human',
+#                            rand_tpa=False,
+#                            )
+        
+        env = CryoEnvSigWrapper(omega=.1,  # this was changed
+                        weighted_reward=True,
+                        log_reward=False,
+                        rand_start=True,
+                        relax_time=60,
+                        tpa_in_state=True,
+                        div_adc_by_bias=True,
+                        pars=aug_pars,
+                        render_mode='human',
+                        rand_tpa=False,)
 
         # check if transition is reachable
 
@@ -129,11 +142,19 @@ if __name__ == '__main__':
     # In[11]:
     
     episodes = 70 if args['double_tes'] else 40
+    
+    if not args['double_tes']:
+        # target_entropy_reduction = 0.05 ** (1 / (episodes * 60 * args['gradient_steps']))
+        target_entropy_std=0.088,
+    else:
+        # target_entropy_reduction = 0.1 ** (1 / (episodes * 60 * args['gradient_steps']))
+        target_entropy_std=5*0.088
 
     model = SoftActorCritic(env, policy = "GaussianPolicy", critic = "QNetwork", lr=args['lr'], buffer_size=buffer_size, learning_starts=0,
                             batch_size=args['batch_size'], gamma=args['gamma'], gradient_steps=args['gradient_steps'], grad_clipping=.5, tau=0.005, 
                             device='cuda' if torch.cuda.is_available() else 'cpu',
-                            target_entropy_reduction=0.05 ** (1 / (episodes * 60 * args['gradient_steps'])),  # reduce stddev by factor 20
+                            target_entropy_std = target_entropy_std,
+                            target_entropy_reduction = 0.05 ** (1 / (episodes * 60 * args['gradient_steps'])),  # reduce stddev by factor 20
                            )
 
     # In[12]:
