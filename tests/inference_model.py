@@ -22,6 +22,8 @@ from transformers import DecisionTransformerConfig, DecisionTransformerModel, Tr
 from dataclasses import dataclass
 import os
 
+from cryoenv.envs import CryoEnvSigWrapper
+
 import argparse
 
 from inference_utils import DecisionTransformerGymDataCollator, TrainableDT, get_action
@@ -34,7 +36,7 @@ if __name__ == '__main__':
     parser.add_argument('--path_sac', type=str, default='/users/felix.wagner/cryoenv/tests/buffers', help='the path to the buffer and model')
     parser.add_argument('--buffer_save_path_inf_sac', type=str, default='/users/felix.wagner/cryoenv/tests/buffers_inf_sac', help='the path to store the sac inference buffer')
     parser.add_argument('--buffer_save_path_inf_dt', type=str, default='/users/felix.wagner/cryoenv/tests/buffers_inf_dt', help='the path to store the dt inference buffer')
-    parser.add_argument('--path_checkpoint', type=str, default='/scratch-cbe/users/felix.wagner/rltests/output_40m/run1_checkpoint-56500', help='the path to the dt checkpoint')
+    parser.add_argument('--path_checkpoint', type=str, default='/scratch-cbe/users/felix.wagner/rltests/output_40m/checkpoint-90000', help='the path to the dt checkpoint')
     
     parser.add_argument('--detector', type=str, default='li1p', help='which detector, either of li1p li1l li2p')
     parser.add_argument('--version', type=int, default=0, help='the version of the trained model')
@@ -87,8 +89,8 @@ if __name__ == '__main__':
             'tpa_queue': [0.1, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
             'pileup_prob': 0.,
             'tp_interval': 10,
-            'dac_range': (0., 5.), 
-            'Ib_range': (0.5, 5.), 
+            'dac_range': (0., 5.) if name_load in ['li1p', 'li2p'] else (0., 10.),  # this was changed
+            'Ib_range': (0.5, 5.) if name_load in ['li1p', 'li2p'] else (0.1, 3.),  # this was changed
             'adc_range': (-10., 10.),
             'rseed': rseed,
             'tau_cap': np.array([1. if int(version) < 75 else 20.]),
@@ -98,17 +100,29 @@ if __name__ == '__main__':
 
         aug_pars = augment_pars(pars_load, scale=0.1 if version < 10 else 0.2, **add_pars)
 
-        env = gym.make('cryoenv:cryoenv-sig-v0',
-                           omega=0.01,
-                           log_reward=False,
-                           rand_start=True,
-                           relax_time=60,
-                           tpa_in_state=True,
-                           div_adc_by_bias=True,
-                           pars=aug_pars,
-                           render_mode='human',
-                           rand_tpa=False,
-                           )
+#         env = gym.make('cryoenv:cryoenv-sig-v0',
+#                            omega=0.01,
+#                            log_reward=False,
+#                            rand_start=True,
+#                            relax_time=60,
+#                            tpa_in_state=True,
+#                            div_adc_by_bias=True,
+#                            pars=aug_pars,
+#                            render_mode='human',
+#                            rand_tpa=False,
+#                            )
+        
+        env = CryoEnvSigWrapper(omega=.0,  # this has to be zero for inference (unspoiled rewards)
+                        weighted_reward=True,
+                        log_reward=False,
+                        rand_start=True,
+                        relax_time=60,
+                        tpa_in_state=True,
+                        div_adc_by_bias=True,
+                        pars=aug_pars,
+                        render_mode='human',
+                        rand_tpa=False,)
+        
 
         # check if transition is reachable
         env.detector.set_control(dac=np.ones(env.nheater), Ib=np.ones(env.ntes), norm=True)
@@ -156,22 +170,22 @@ if __name__ == '__main__':
 
         collator = DecisionTransformerGymDataCollator(dataset_train)
 
-        # /scratch-cbe/users/felix.wagner/rltests/output_40m/run1_checkpoint-56500  # 40M
-
-        # output/run3_checkpoint-297500  # 10M
-
         model = TrainableDT.from_pretrained(args['path_checkpoint'])
 
 
         # thats crucial!
-        model.config.max_length = 20
+        model.config.max_length = 60
 
-
+        
         model = model.to("cpu")
         device = "cpu"
 
         scale = collator.scale # 1000.0  # normalization for rewards/returns
-        TARGET_RETURN = collator.target / scale  # 12000 / scale  # evaluation is conditioned on a return of 12000, scaled accordingly
+        TARGET_EXPLORE = -0.024 if name_load == 'li1p' else -0.08 if name_load == 'li1l' else -0.02  # -0.3
+        TARGET_EXPLOIT = -0.024 if name_load == 'li1p' else -0.08 if name_load == 'li1l' else -0.02 
+        # TARGET_EXPLORE = -0.042 if name_load == 'li1p' else -0.1 if name_load == 'li1l' else -0.041  # -0.3
+        # TARGET_EXPLOIT = -0.05 if name_load == 'li1p' else -0.1 if name_load == 'li1l' else -0.05 
+        TARGET_RETURN = TARGET_EXPLORE * 60 / scale  # collator.target # / scale  # 12000 / scale  # evaluation is conditioned on a return of 12000, scaled accordingly
         print(scale, TARGET_RETURN)
 
         state_mean = collator.state_mean.astype(np.float32)
@@ -180,57 +194,85 @@ if __name__ == '__main__':
 
         state_dim = env.observation_space.shape[0]
         act_dim = env.action_space.shape[0]
-        # Create the decision transformer model
 
         state_mean = torch.from_numpy(state_mean).to(device=device)
         state_std = torch.from_numpy(state_std).to(device=device)
+        
+        tries = 1
+
+        for try_ in range(tries):
+
+            print('TRY {}/{}'.format(try_, tries))
+
+            episode_return, episode_length = 0, 0
+
+            state, _ = env.reset(clear_buffer=True)
+
+            target_return = torch.tensor(TARGET_RETURN, device=device, dtype=torch.float32).reshape(1, 1)
+            states = torch.from_numpy(state).reshape(1, state_dim).to(device=device, dtype=torch.float32)
+            actions = torch.zeros((0, act_dim), device=device, dtype=torch.float32)
+            rewards = torch.zeros(0, device=device, dtype=torch.float32)
+
+            switched = False
+
+            timesteps = torch.tensor(0, device=device, dtype=torch.long).reshape(1, 1)
+            for t in trange(60):
+                actions = torch.cat([actions, torch.zeros((1, act_dim), device=device)], dim=0)
+                rewards = torch.cat([rewards, torch.zeros(1, device=device)])
+
+                action = get_action(
+                    model,
+                    (states - state_mean) / state_std,
+                    actions,
+                    rewards,
+                    target_return,
+                    timesteps,
+                )
+                actions[-1] = action
+                action = action.detach().cpu().numpy()
+
+                state, reward, terminated, truncated, info = env.step(action)
+                done = terminated or truncated
 
 
-        episode_return, episode_length = 0, 0
+                cur_state = torch.from_numpy(state).to(device=device).reshape(1, state_dim)
+                states = torch.cat([states, cur_state], dim=0)
+                rewards[-1] = reward
 
-        state, _ = env.reset(clear_buffer=True)
+                pred_return = target_return[0, -1] - (reward / scale)
+                target_return = torch.cat([target_return, pred_return.reshape(1, 1)], dim=1)
 
-        target_return = torch.tensor(TARGET_RETURN, device=device, dtype=torch.float32).reshape(1, 1)
-        states = torch.from_numpy(state).reshape(1, state_dim).to(device=device, dtype=torch.float32)
-        actions = torch.zeros((0, act_dim), device=device, dtype=torch.float32)
-        rewards = torch.zeros(0, device=device, dtype=torch.float32)
 
-        timesteps = torch.tensor(0, device=device, dtype=torch.long).reshape(1, 1)
-        for t in trange(60):
-            actions = torch.cat([actions, torch.zeros((1, act_dim), device=device)], dim=0)
-            rewards = torch.cat([rewards, torch.zeros(1, device=device)])
+                episode_return += reward
+                episode_length += 1
 
-            action = get_action(
-                model,
-                (states - state_mean) / state_std,
-                actions,
-                rewards,
-                target_return,
-                timesteps,
-            )
-            actions[-1] = action
-            action = action.detach().cpu().numpy()
+                if reward > -0.15 and not switched:
+                    target_return += (TARGET_EXPLOIT * 60 / scale - TARGET_RETURN) * (60-t)/60
+                    print('Switching in t={}'.format(t))
+                    switched = True
 
-            state, reward, terminated, truncated, info = env.step(action)
-            done = terminated or truncated
+                # if target_return[0,-1] > (60-t)*TARGET_EXPLORE/scale/2 and not switched:
+                #     target_return[0, :] += (60-t)*(TARGET_EXPLORE/scale) - target_return[0, -1]
+                # if target_return[0,-1] > 0 and switched:
+                #     target_return[0, :] += (60-t)*(TARGET_EXPLORE/scale) - target_return[0, -1]
+                #     switched = False
+                #     print('Switching back in t={}'.format(t))
 
-            cur_state = torch.from_numpy(state).to(device=device).reshape(1, state_dim)
-            states = torch.cat([states, cur_state], dim=0)
-            rewards[-1] = reward
+                timesteps = torch.cat([timesteps, torch.ones((1, 1), device=device, dtype=torch.long) * (t + 1)], dim=1)
 
-            pred_return = target_return[0, -1] - (reward / scale)
-            target_return = torch.cat([target_return, pred_return.reshape(1, 1)], dim=1)
-            timesteps = torch.cat([timesteps, torch.ones((1, 1), device=device, dtype=torch.long) * (t + 1)], dim=1)
+                if done:
+                    break
 
-            episode_return += reward
-            episode_length += 1
-
-            if done:
+            if switched:  # np.mean(-np.array(env.detector.buffer_rms[-30:])/np.array(env.detector.buffer_ph[-30:])) > 2 * TARGET_EXPLOIT:
+                print('SUCCESS')
                 break
+
+            if try_ == tries - 1:
+                print('FAILED')
 
 
         env.detector.write_buffer(path_inf_dt + 'buffer')
-
+        print('WROTE BUFFERS')
 
 
 
