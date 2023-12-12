@@ -75,9 +75,9 @@ if __name__ == '__main__':
     if args["use_sampler"]:
         pars = cs.sample_parameters(**kwargs)
         print(pars)
-        det = cs.DetectorModule(**pars)
+        det = cs.DetectorModel(**pars)
     else:
-        det = cs.DetectorModule(**kwargs)
+        det = cs.DetectorModel(**kwargs)
 
     det.clear_buffer()
     start_time = time.time()

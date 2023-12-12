@@ -1,4 +1,4 @@
-import gym
+import gymnasium as gym
 import warnings
 import numpy as np
 from tqdm.auto import trange
@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from cryoenv.agents import SAC
 
 warnings.simplefilter('ignore')
-gym.logger.set_level(40)
+# gym.logger.set_level(40)
 
 if __name__ == '__main__':
 

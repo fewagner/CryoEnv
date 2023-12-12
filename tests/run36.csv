@@ -1,0 +1,12 @@
+Module,Material PD,Mounting,Surface mm2,Volume mm3,Mass g,TES,Tc @ MPP,Tc @ LNGS,TES-W PD [mm2],TES-Al PD[mm2],SiO2 below TES[nm],polishing,Material LD,Mounting,Surface mm2,Volume mm3,Mass g,TES,Tc @ MPP,Tc @ LNGS,TES-W PD [mm2],TES-Al LD[mm2],SiO2 below TES[nm],polishing,BL resolution [eV],Threshold [eV],Notes
+Comm1 ,CaWO4,Bonze clamps - bare,1600,4000,"24,5*",WI 563/2,16,,5.69,30.53,100,yes,SOS,Copper sticks - bare,800,150,0.597,WI 552/2?,,,0.072,1.01,100,yes,,,all TES on SOS substrates are produced on Si-side
+Comm2,CaWO4,Bonze clamps - bare,1600,4000,"24,5*",WI 563/3,20,,2.6,15.96,100,yes,SOS,Copper sticks - bare,800,150,0.597,WI 538/1,,,0.072,1.01,100,yes,,,
+TUM93A,CaWO4,2xCopper sticks + 1iStick - foil,1600,4000,"24,5*",WI 658 A,,,2.6,15.96,50,no,SOS,CaWO4 sticks -foil,800,150,0.597,WI 550/2,21.5,,0.072,1.01,100,yes,,,
+TUM93B,CaWO4,2xCopper sticks + 1iStick - foil,1600,4000,"24,5*",WI 658 B,,,2.6,15.96,50,?,SOS,CaWO4 sticks -foil,800,150,0.597,WI 538/4,,,0.072,1.01,100,yes,,,
+TUM93C,CaWO4,3xCopper sticks  - foil,1600,4000,"24,5*",WI 658 C,,,2.6,15.96,50,no,SOS,CaWO4 sticks -foil,800,150,0.597,WI 552/1,,,0.072,1.01,100,yes,,,
+Si2,Si ,Cu sticks - bare,1600,4000,"9,3*",WI 621 2S,,,1.41,7.6,50,yes,Si (not a LD),Cu sticks - bare,800,150,0.34935,WI 663/2,,,,,75,yes,,,
+Saph1,Al2O3,Cu sticks - bare,1600,4000,"15,9*",WI 626/1,,,2.6,15.96,50,yes,SOS,Cu sticks - bare,800,150,0.597,WI 561/1,,,0.072,1.01,100,yes,,,
+Saph2,Al2O3,Cu sticks - bare,1600,4000,"15,9*",WI 626/2,,,2.6,15.96,50,yes,SOS,Cu sticks - bare,800,150,0.597,WI 552/4,,,0.072,1.01,100,yes,,,
+Li1,LiAlO2,Cu sticks - foil,1600,4000,"11,2*",WI 660/1,,,2.6,15.96,50,no,SOS,Cu sticks - foil,800,150,0.597,WI 531/3,,,0.072,1.01,100,yes,,,
+Li2,LiAlO2,Cu sticks - foil,1600,4000,"11,2*",WI 660/2,,,2.6,15.96,50,no,SOS,Cu sticks - foil,800,150,0.597,WI 561/4 ,,,0.072,1.01,100,yes,,,
+,,,,,*To be verified at dismounting,,,,,,,,,,,,,,,,,,,,,,

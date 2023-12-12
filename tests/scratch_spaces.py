@@ -1,10 +1,10 @@
-import gym
+import gymnasium as gym
 import warnings
 import numpy as np
 
 warnings.simplefilter('ignore')
 np.random.seed(0)
-gym.logger.set_level(40)
+# gym.logger.set_level(40)
 
 # constants
 env_kwargs = {

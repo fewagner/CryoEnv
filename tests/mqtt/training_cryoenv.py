@@ -14,6 +14,7 @@ import warnings
 import torch
 import pickle
 import argparse
+import shutil
 
 # from IPython.display import display, clear_output
 
@@ -52,6 +53,9 @@ warnings.simplefilter('ignore')
 env = gym.make('cryoenv:cryoenv-sig-v0',
                    omega=omega,
                    sample_pars=False,
+                   tpa_in_state=tpa_in_state,
+                   rand_start=True,
+                   relax_time=tau,
                    pars={'store_raw': False,
                          'max_buffer_len': buffer_size,
                          'tpa_queue': tpa_queue,
@@ -71,17 +75,29 @@ action = env.action_space.sample()
 
 # In[7]:
 
+if load and path_load != path_test:
+    if os.path.isdir(path_test):
+        shutil.rmtree(path_test)
+    shutil.copytree(path_load, path_test)
+
+# In[8]:
+
+for path in [path_buffer, path_models]:
+    if not os.path.exists(path):
+        os.makedirs(path)
 
 buffer = ReplayBuffer(buffer_size=buffer_size, input_shape=(env.observation_space.shape[0],), n_actions=env.action_space.shape[0], memmap_loc=path_buffer)
 
 writer = HistoryWriter()
 
-agent = SoftActorCritic(env, lr=lr, gamma=gamma, batch_size=batch_size, learning_starts=learning_starts, gradient_steps=gradient_steps, buffer_size=buffer_size, buffer=buffer, tau=update_factor,
-                        device='cuda' if torch.cuda.is_available() else 'cpu')
-agent.save(path_models)
+if not load:
+    agent = SoftActorCritic(env, lr=lr, gamma=gamma, batch_size=batch_size, learning_starts=learning_starts, gradient_steps=gradient_steps, buffer_size=buffer_size, buffer=buffer, tau=update_factor,
+                            device='cuda' if torch.cuda.is_available() else 'cpu')
+    agent.save(path_models)
+else:
+    agent = SoftActorCritic.load(env, path_models, load_critic=True, lr=lr, gamma=gamma, batch_size=batch_size, learning_starts=learning_starts, gradient_steps=gradient_steps, buffer_size=buffer_size, buffer=buffer, tau=update_factor, device='cuda' if torch.cuda.is_available() else 'cpu')
 
-
-# In[8]:
+# In[9]:
 
 while not os.path.isfile(path_buffer + 'state_memory.npy'):
     print('waiting for buffer ...')
@@ -118,8 +134,9 @@ while True:
             time.sleep(.3)
     os.system('clear')
     mtime = current_mtime
-    greedy_action, greedy_likelihood = agent.predict(np.array([0,0,0,0]), greedy=True)
-    print('greedy action for state (0,0,0,0) is: {}, with likelihood: {}'.format(greedy_action, np.exp(greedy_likelihood)))
+    mock_state = np.zeros(6 if tpa_in_state else 5)  # 7 if memory states
+    greedy_action, greedy_likelihood = agent.predict(mock_state, greedy=True)
+    print('greedy action for state {} is: {}, with likelihood: {}'.format(mock_state, greedy_action, np.exp(greedy_likelihood)))
     print('steps trained: {}, buffer last modified: {}'.format(steps_counter, mtime))    
 
     if steps_counter % 1000 == 0:

@@ -1,6 +1,6 @@
 import numpy as np
-import gym
-from gym import error, spaces, utils
+import gymnasium as gym
+from gymnasium import error, spaces, utils
 from cryoenv.agents._interpolator import Interpolator
 import matplotlib.pyplot as plt
 

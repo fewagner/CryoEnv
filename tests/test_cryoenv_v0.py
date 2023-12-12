@@ -1,5 +1,5 @@
 # imports
-import gym
+import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
 from stable_baselines3 import A2C, SAC

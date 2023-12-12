@@ -11,10 +11,10 @@ use_sampler = False
 if use_sampler:
     pars = cs.sample_parameters()
     print(pars)
-    det = cs.DetectorModule(**pars)
+    det = cs.DetectorModel(**pars)
 
 else:
-    det = cs.DetectorModule()
+    det = cs.DetectorModel()
 
 det.set_control(dac=[-.5], Ib=[-.9], norm=True)
 for _ in range(2):
