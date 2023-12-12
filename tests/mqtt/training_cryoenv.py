@@ -134,7 +134,7 @@ while True:
             time.sleep(.3)
     os.system('clear')
     mtime = current_mtime
-    mock_state = np.zeros(7 if tpa_in_state else 4)
+    mock_state = np.zeros(6 if tpa_in_state else 5)  # 7 if memory states
     greedy_action, greedy_likelihood = agent.predict(mock_state, greedy=True)
     print('greedy action for state {} is: {}, with likelihood: {}'.format(mock_state, greedy_action, np.exp(greedy_likelihood)))
     print('steps trained: {}, buffer last modified: {}'.format(steps_counter, mtime))    

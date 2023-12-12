@@ -1,4 +1,4 @@
-import gym
+import gymnasium as gym
 import time
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,7 +13,7 @@ import warnings
 
 warnings.simplefilter('ignore')
 np.random.seed(0)
-gym.logger.set_level(40)
+# gym.logger.set_level(40)
 
 
 class ProgressBarCallback(BaseCallback):

@@ -1,5 +1,4 @@
 import numpy as np
-import numba as nb
 
 def action_to_discrete(reset: np.ndarray, V_decrease: np.ndarray, wait: np.ndarray,
                        wait_iv: tuple = (2, 100), V_iv: tuple = (0, 99), wait_step=2, V_step=1, check_input=True):
